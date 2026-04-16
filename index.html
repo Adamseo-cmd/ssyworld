@@ -2,153 +2,185 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>Hi-On War Room v21 | 자동정보 수집</title>
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=dd5d2b11a924fd56b3fe3265b0b4caaa&libraries=services"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hi-On War Room v21 | V-World 자동분석</title>
+
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_JS_KEY&libraries=services"></script>
+
 <style>
-body{margin:0;font-family:sans-serif;background:#0b0f1a;color:#fff;}
-#map{width:100%;height:100vh;}
-#panel{position:absolute;right:0;top:0;width:380px;height:100%;background:#111;padding:15px;overflow:auto;}
-.sec{margin-bottom:15px;padding:12px;background:#1b2333;border-radius:8px;}
-.loading{color:#88f; font-size:13px;}
+body {margin:0;font-family:sans-serif;background:#0b0f1a;color:#fff;}
+#map {width:100%;height:100vh;}
+#panel {
+  position:absolute;right:0;top:0;width:360px;height:100%;
+  background:#111;padding:12px;overflow:auto;
+}
+.sec {margin-bottom:12px;padding:10px;background:#1b2333;border-radius:8px;}
 </style>
 </head>
+
 <body>
+
 <div id="map"></div>
+
 <div id="panel">
-  <div class="sec">지도 클릭 → 자동 수집</div>
-  
   <div class="sec">
     <div>지번: <span id="addr">-</span></div>
     <div>PNU: <span id="pnu">-</span></div>
   </div>
-  
+
   <div class="sec">
     <div>대지면적: <span id="v-area">-</span></div>
     <div>공시지가: <span id="v-price">-</span></div>
     <div>토지가격: <span id="v-total">-</span></div>
   </div>
-  
+
   <div class="sec">
     <div id="dev">개발 분석 대기</div>
   </div>
 </div>
 
 <script>
+
 // ===== CONFIG =====
 const CFG = {
-  kakao: "dd5d2b11a924fd56b3fe3265b0b4caaa",
-  public: "f99bafd9e59fa0259b7b927039fed394290ca4623ad3558caf138f6c6a5080a4",   // 통합 인증키
+  kakao: "YOUR_KAKAO_JS_KEY",
+  public: "YOUR_PUBLIC_API_KEY",
   vworld: "D908CE2F-5A9B-3B2F-BF3D-ABC7D1DC40B8"
 };
 
 // ===== 상태 =====
-const ST = { lat:0, lng:0, pnu:'', area:0, price:0, jibun:'' };
+const ST = {
+  lat:0,lng:0,pnu:'',area:0,price:0,jibun:''
+};
 
 let map;
 
 // ===== 초기화 =====
 window.onload = () => {
   map = new kakao.maps.Map(document.getElementById('map'), {
-    center: new kakao.maps.LatLng(37.5665, 126.9780),
-    level: 3
+    center:new kakao.maps.LatLng(37.5665,126.9780),
+    level:3
   });
-  kakao.maps.event.addListener(map, 'click', e => onMapClick(e.latLng.getLat(), e.latLng.getLng()));
+
+  kakao.maps.event.addListener(map,'click', e=>{
+    onMapClick(e.latLng.getLat(), e.latLng.getLng());
+  });
 };
 
-// ===== 메인 =====
-async function onMapClick(lat, lng) {
-  ST.lat = lat; ST.lng = lng;
-  resetUI();
-  document.getElementById('dev').innerHTML = '<span class="loading">자동 수집 중...</span>';
+// ===== 클릭 =====
+async function onMapClick(lat, lng){
 
-  await fetchVWorld(lat, lng);           // PNU + 면적 + 지번
-  if (ST.pnu) {
-    await Promise.all([fetchLandPrice(), fetchBuildingInfo()]);
-  }
+  ST.lat = lat;
+  ST.lng = lng;
+
+  // 🔥 핵심 (1초)
+  await fetchVWorld(lat, lng);
+
+  // 추가 데이터
+  await fetchLandPrice();
 
   renderUI();
 }
 
 // ===== V-World =====
-async function fetchVWorld(lat, lng) {
-  const url = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LP_PA_CBND_BUBUN&key=${CFG.vworld}&geomFilter=POINT(${lng} ${lat})&geometry=false&size=1`;
-  try {
+async function fetchVWorld(lat, lng){
+
+  const url = `https://api.vworld.kr/req/data
+  ?service=data
+  &request=GetFeature
+  &data=LP_PA_CBND_BUBUN
+  &key=${CFG.vworld}
+  &geomFilter=POINT(${lng} ${lat})
+  &geometry=false
+  &size=1`;
+
+  try{
     const res = await fetch(url);
     const json = await res.json();
-    const f = json?.response?.result?.featureCollection?.features?.[0];
-    if (f) {
-      const p = f.properties;
-      ST.pnu = p.pnu || '';
-      ST.area = parseFloat(p.area) || 0;
-      ST.jibun = p.jibun || '';
+
+    const feature = json?.response?.result?.featureCollection?.features?.[0];
+
+    if(!feature){
+      console.warn("데이터 없음");
+      return;
     }
-  } catch(e) { console.error("VWorld 실패", e); }
+
+    const prop = feature.properties;
+
+    ST.pnu   = prop.pnu;
+    ST.area  = parseFloat(prop.area);
+    ST.jibun = prop.jibun;
+
+    console.log("VWorld:", prop);
+
+  }catch(e){
+    console.error("VWorld 실패", e);
+  }
 }
 
 // ===== 공시지가 =====
-async function fetchLandPrice() {
-  if (!ST.pnu) return;
-  const url = `https://apis.data.go.kr/1613000/LandPriceService/getIndvdlLandPrice?serviceKey=${CFG.public}&pnu=${ST.pnu}&_type=json`;
-  try {
+async function fetchLandPrice(){
+
+  if(!ST.pnu) return;
+
+  const url = `https://apis.data.go.kr/1613000/LandPriceService/getLandPriceInfo
+  ?serviceKey=${CFG.public}
+  &pnu=${ST.pnu}
+  &_type=json`;
+
+  try{
     const res = await fetch(url);
     const data = await res.json();
-    const item = data?.response?.body?.items?.item;
-    ST.price = parseFloat(Array.isArray(item) ? item[0]?.landPrice : item?.landPrice) || 0;
-  } catch(e) {}
-}
 
-// ===== 건축물대장 =====
-async function fetchBuildingInfo() {
-  if (!ST.pnu) return;
-  const sigungu = ST.pnu.substring(0,5);
-  const bjdong  = ST.pnu.substring(5,10);
-  const bun     = ST.pnu.substring(11,15);
-  const ji      = ST.pnu.substring(15,19);
+    let item = data?.response?.body?.items?.item;
+    if(Array.isArray(item)) item = item[0];
 
-  const url = `https://apis.data.go.kr/1613000/BldRgstService_v2/getBldRgst?serviceKey=${CFG.public}&sigunguCd=${sigungu}&bjdongCd=${bjdong}&platGbCd=0&bun=${bun}&ji=${ji}&_type=json`;
-  
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-    const item = data?.response?.body?.items?.item?.[0] || {};
-    ST.bldUse = item.mainPurpsCdNm || '';
-    ST.bldGfa = parseFloat(item.totArea) || 0;
-    ST.useAprDay = item.useAprDay || '';
-  } catch(e) {}
+    if(item){
+      ST.price = parseFloat(item.pblntfPclnd);
+    }
+
+  }catch(e){
+    console.error("지가 실패");
+  }
 }
 
 // ===== UI =====
-function resetUI() {
-  ['addr','pnu','v-area','v-price','v-total'].forEach(id => {
-    document.getElementById(id).innerText = '-';
-  });
-}
+function renderUI(){
 
-function renderUI() {
-  document.getElementById('addr').innerText = ST.jibun || '-';
-  document.getElementById('pnu').innerText = ST.pnu || '-';
-  document.getElementById('v-area').innerText = ST.area ? ST.area.toLocaleString() + "㎡" : "-";
-  document.getElementById('v-price').innerText = ST.price ? ST.price.toLocaleString() + "원/㎡" : "-";
-  
+  document.getElementById('addr').innerText = ST.jibun || "-";
+  document.getElementById('pnu').innerText = ST.pnu || "-";
+
+  document.getElementById('v-area').innerText =
+    ST.area ? ST.area.toLocaleString()+"㎡":"-";
+
+  document.getElementById('v-price').innerText =
+    ST.price ? ST.price.toLocaleString()+"원/㎡":"-";
+
   const total = ST.area * ST.price;
-  document.getElementById('v-total').innerText = total ? (total/100000000).toFixed(1) + "억" : "-";
+
+  document.getElementById('v-total').innerText =
+    total ? (total/100000000).toFixed(1)+"억":"-";
 
   renderDev();
 }
 
-function renderDev() {
-  if (!ST.area) {
-    document.getElementById('dev').innerText = "데이터 수집 실패";
+// ===== 개발 분석 =====
+function renderDev(){
+
+  if(!ST.area){
+    document.getElementById('dev').innerText = "데이터 없음";
     return;
   }
-  const gfa = Math.round(ST.area * 2.0);
+
+  const gfa = ST.area * 2; // 용적률 가정
   const units = Math.floor(gfa / 30);
-  document.getElementById('dev').innerHTML = `
-    개발가능 연면적: ${gfa.toLocaleString()}㎡<br>
-    예상 세대수: ${units}세대<br>
-    <small style="color:#8af">V-World + 국토부 자동 수집 완료</small>
-  `;
+
+  document.getElementById('dev').innerHTML =
+    `개발가능 연면적: ${gfa.toLocaleString()}㎡<br>
+     예상 세대수: ${units}세대`;
 }
+
 </script>
+
 </body>
 </html>
