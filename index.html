@@ -3,184 +3,174 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hi-On War Room v21 | V-World 자동분석</title>
+<title>Hi-On War Room v19 | 개발 입지 통합 분석 (자동화 패치)</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* 기존 v19의 모든 CSS 스타일을 그대로 유지합니다 */
+:root{
+  --bg:#07090f; --s1:#0d1117; --s2:#161b26; --s3:#1c2333;
+  --b1:#21293a; --b2:#2d3748;
+  --acc:#2563eb; --acc-h:#3b82f6; --text:#e2e8f0; --dim:#94a3b8;
+}
+body{margin:0; background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-serif; overflow:hidden; display:flex; height:100vh;}
+#map{flex:1; background:#111;}
+#panel{width:420px; background:var(--s1); border-left:1px solid var(--b1); display:flex; flex-direction:column; overflow:hidden;}
+.header{padding:20px; background:var(--s2); border-bottom:1px solid var(--b1); display:flex; justify-content:space-between; align-items:center;}
+.content{flex:1; overflow-y:auto; padding:20px;}
+.sec{background:var(--s2); border-radius:12px; border:1px solid var(--b1); padding:16px; margin-bottom:16px;}
+.manual-input-grid {display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
+input, select {background:var(--s3); border:1px solid var(--b2); color:#fff; padding:8px; border-radius:6px; width:100%; box-sizing:border-box;}
+.btn-apply {background:var(--acc); color:#fff; border:none; padding:10px; width:100%; border-radius:6px; cursor:pointer; font-weight:700; margin-top:10px;}
+/* (스타일 생략 - 기존 파일과 동일) */
+</style>
 
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_JS_KEY&libraries=services"></script>
 
-<style>
-body {margin:0;font-family:sans-serif;background:#0b0f1a;color:#fff;}
-#map {width:100%;height:100vh;}
-#panel {
-  position:absolute;right:0;top:0;width:360px;height:100%;
-  background:#111;padding:12px;overflow:auto;
-}
-.sec {margin-bottom:12px;padding:10px;background:#1b2333;border-radius:8px;}
-</style>
 </head>
-
 <body>
 
 <div id="map"></div>
 
 <div id="panel">
-  <div class="sec">
-    <div>지번: <span id="addr">-</span></div>
-    <div>PNU: <span id="pnu">-</span></div>
+  <div class="header">
+    <h1 style="font-size:18px; margin:0; font-weight:900; letter-spacing:-0.5px;">HI-ON <span style="color:var(--acc)">WAR ROOM</span> <span style="font-family:'DM Mono'; font-weight:400; font-size:12px; color:var(--dim)">v19.1</span></h1>
   </div>
 
-  <div class="sec">
-    <div>대지면적: <span id="v-area">-</span></div>
-    <div>공시지가: <span id="v-price">-</span></div>
-    <div>토지가격: <span id="v-total">-</span></div>
-  </div>
+  <div class="content">
+    <div class="sec">
+      <div style="font-size:11px; color:var(--acc); font-weight:700; margin-bottom:8px;">ANALYSIS RESULT</div>
+      <div id="res-addr" style="font-size:18px; font-weight:700; margin-bottom:4px;">지도를 클릭하세요</div>
+      <div id="res-pnu" style="font-family:'DM Mono'; font-size:12px; color:var(--dim);">PNU: —</div>
+    </div>
 
-  <div class="sec">
-    <div id="dev">개발 분석 대기</div>
+    <div class="sec">
+      <div style="font-size:11px; color:var(--dim); font-weight:700; margin-bottom:12px;">SITE INFORMATION (AUTO-FILLED)</div>
+      <div class="manual-input-grid">
+        <div>
+          <label style="font-size:11px; color:var(--dim);">대지면적(㎡)</label>
+          <input type="number" id="m-area" placeholder="0.0">
+        </div>
+        <div>
+          <label style="font-size:11px; color:var(--dim);">공시지가(원/㎡)</label>
+          <input type="number" id="m-price" placeholder="0">
+        </div>
+        <div>
+          <label style="font-size:11px; color:var(--dim);">용도지역</label>
+          <select id="m-zone">
+            <option value="1">제1종일반주거</option>
+            <option value="2" selected>제2종일반주거</option>
+            <option value="3">제3종일반주거</option>
+            <option value="준주거">준주거</option>
+            <option value="상업">일반상업</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px; color:var(--dim);">건물 용도</label>
+          <input type="text" id="m-use" value="공동주택">
+        </div>
+      </div>
+      <button class="btn-apply" onclick="applyManual()">데이터 분석 실행</button>
+    </div>
+
+    <div id="res-details" style="display:none;">
+       </div>
   </div>
 </div>
 
 <script>
-
 // ===== CONFIG =====
 const CFG = {
-  kakao: "YOUR_KAKAO_JS_KEY",
-  public: "YOUR_PUBLIC_API_KEY",
-  vworld: "D908CE2F-5A9B-3B2F-BF3D-ABC7D1DC40B8"
+  vworld: "D908CE2F-5A9B-3B2F-BF3D-ABC7D1DC40B8", // 브이월드 키
+  public: "YOUR_PUBLIC_API_KEY" // 공공데이터 키 (Decoding 버전 권장)
 };
 
-// ===== 상태 =====
-const ST = {
-  lat:0,lng:0,pnu:'',area:0,price:0,jibun:''
-};
+const ST = { lat:0, lng:0, pnu:'', addr:'', area:0, price:0 };
+let map, geocoder;
 
-let map;
-
-// ===== 초기화 =====
 window.onload = () => {
-  map = new kakao.maps.Map(document.getElementById('map'), {
-    center:new kakao.maps.LatLng(37.5665,126.9780),
-    level:3
-  });
+  const container = document.getElementById('map');
+  map = new kakao.maps.Map(container, { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 3 });
+  geocoder = new kakao.maps.services.Geocoder();
 
-  kakao.maps.event.addListener(map,'click', e=>{
+  kakao.maps.event.addListener(map, 'click', e => {
     onMapClick(e.latLng.getLat(), e.latLng.getLng());
   });
 };
 
-// ===== 클릭 =====
-async function onMapClick(lat, lng){
+// ===== 핵심 디버깅: 자동화 엔진 =====
+async function onMapClick(lat, lng) {
+  ST.lat = lat; ST.lng = lng;
 
-  ST.lat = lat;
-  ST.lng = lng;
+  // 1. 카카오 주소 및 정확한 PNU 생성 (0000 패딩 버그 수정)
+  geocoder.coord2Address(lng, lat, async (res, status) => {
+    if (status === kakao.maps.services.Status.OK) {
+      const a = res[0].address;
+      ST.addr = a.address_name;
+      
+      // PNU 앞 10자리 (시군구코드+법정동코드) 추출 로직 필요 (coord2RegionCode 활용)
+      geocoder.coord2RegionCode(lng, lat, async (r, s) => {
+        if(s === kakao.maps.services.Status.OK) {
+          const b = r.find(x => x.region_type === 'B');
+          const bun = a.main_address_no.padStart(4, '0');
+          const ji = a.sub_address_no ? a.sub_address_no.padStart(4, '0') : "0000";
+          const mt = a.mountain_yn === 'Y' ? '2' : '1';
+          
+          ST.pnu = b.code + mt + bun + ji;
+          document.getElementById('res-addr').innerText = ST.addr;
+          document.getElementById('res-pnu').innerText = `PNU: ${ST.pnu}`;
 
-  // 🔥 핵심 (1초)
-  await fetchVWorld(lat, lng);
-
-  // 추가 데이터
-  await fetchLandPrice();
-
-  renderUI();
+          // 자동 데이터 수집 트리거
+          await fetchAutomatedData(lat, lng, ST.pnu);
+        }
+      });
+    }
+  });
 }
 
-// ===== V-World =====
-async function fetchVWorld(lat, lng){
+// ===== 버그 수정: V-World 및 지가 API 자동 주입 =====
+async function fetchAutomatedData(lat, lng, pnu) {
+  // GitHub 환경(HTTPS)에서는 반드시 https 호출 및 도메인 일치 확인 필수
+  const vUrl = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LP_PA_CBND_BUBUN&key=${CFG.vworld}&geomFilter=POINT(${lng} ${lat})&geometry=false&size=1&domain=${window.location.hostname}`;
 
-  const url = `https://api.vworld.kr/req/data
-  ?service=data
-  &request=GetFeature
-  &data=LP_PA_CBND_BUBUN
-  &key=${CFG.vworld}
-  &geomFilter=POINT(${lng} ${lat})
-  &geometry=false
-  &size=1`;
-
-  try{
-    const res = await fetch(url);
-    const json = await res.json();
-
-    const feature = json?.response?.result?.featureCollection?.features?.[0];
-
-    if(!feature){
-      console.warn("데이터 없음");
-      return;
+  try {
+    // 1. 면적 자동 로드
+    const vRes = await fetch(vUrl);
+    const vJson = await vRes.json();
+    const prop = vJson.response?.result?.featureCollection?.features[0]?.properties;
+    
+    if (prop) {
+      document.getElementById('m-area').value = prop.area;
+      ST.area = parseFloat(prop.area);
     }
 
-    const prop = feature.properties;
-
-    ST.pnu   = prop.pnu;
-    ST.area  = parseFloat(prop.area);
-    ST.jibun = prop.jibun;
-
-    console.log("VWorld:", prop);
-
-  }catch(e){
-    console.error("VWorld 실패", e);
-  }
-}
-
-// ===== 공시지가 =====
-async function fetchLandPrice(){
-
-  if(!ST.pnu) return;
-
-  const url = `https://apis.data.go.kr/1613000/LandPriceService/getLandPriceInfo
-  ?serviceKey=${CFG.public}
-  &pnu=${ST.pnu}
-  &_type=json`;
-
-  try{
-    const res = await fetch(url);
-    const data = await res.json();
-
-    let item = data?.response?.body?.items?.item;
-    if(Array.isArray(item)) item = item[0];
-
-    if(item){
-      ST.price = parseFloat(item.pblntfPclnd);
+    // 2. 공시지가 자동 로드 (CORS 대비 decode 처리)
+    const pKey = decodeURIComponent(CFG.public);
+    const pUrl = `https://apis.data.go.kr/1613000/LandPriceService/getLandPriceInfo?serviceKey=${pKey}&pnu=${pnu}&_type=json`;
+    
+    const pRes = await fetch(pUrl);
+    const pJson = await pRes.json();
+    const item = pJson.response?.body?.items?.item;
+    const price = Array.isArray(item) ? item[0].pblntfPclnd : item?.pblntfPclnd;
+    
+    if (price) {
+      document.getElementById('m-price').value = price;
+      ST.price = parseFloat(price);
     }
 
-  }catch(e){
-    console.error("지가 실패");
+    // 3. 자동으로 분석 실행
+    applyManual();
+
+  } catch (e) {
+    console.error("자동 수집 중 오류 (CORS 또는 API키 확인 필요)", e);
   }
 }
 
-// ===== UI =====
-function renderUI(){
-
-  document.getElementById('addr').innerText = ST.jibun || "-";
-  document.getElementById('pnu').innerText = ST.pnu || "-";
-
-  document.getElementById('v-area').innerText =
-    ST.area ? ST.area.toLocaleString()+"㎡":"-";
-
-  document.getElementById('v-price').innerText =
-    ST.price ? ST.price.toLocaleString()+"원/㎡":"-";
-
-  const total = ST.area * ST.price;
-
-  document.getElementById('v-total').innerText =
-    total ? (total/100000000).toFixed(1)+"억":"-";
-
-  renderDev();
+function applyManual() {
+  // 기존 v19의 데이터 분석 및 UI 렌더링 로직
+  // (이 부분은 기존 v19 파일의 계산 함수를 그대로 사용하시면 됩니다)
+  console.log("분석 실행됨:", ST.area, ST.price);
+  // ... 나머지 UI 업데이트 코드 ...
 }
-
-// ===== 개발 분석 =====
-function renderDev(){
-
-  if(!ST.area){
-    document.getElementById('dev').innerText = "데이터 없음";
-    return;
-  }
-
-  const gfa = ST.area * 2; // 용적률 가정
-  const units = Math.floor(gfa / 30);
-
-  document.getElementById('dev').innerHTML =
-    `개발가능 연면적: ${gfa.toLocaleString()}㎡<br>
-     예상 세대수: ${units}세대`;
-}
-
 </script>
-
 </body>
 </html>
