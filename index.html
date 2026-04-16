@@ -3,11 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hi-On War Room v18 | 개발 입지 통합 분석</title>
+<title>Hi-On War Room v19 | 개발 입지 통합 분석</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════════
-   Hi-On War Room v18  |  2026.04.16
+   Hi-On War Room v19  |  2026.04.16
+   실제 작동 API 기반 재설계
+   ✅ 카카오 JS SDK (지도·주소·PNU·역세권)
+   ✅ 실거래가 API (국토부 RTMSDataSvc)
+   ✅ 수동입력 UI (면적·지가·용도지역·건물)
+   ❌ V-World 완전 제거 (502 오류)
+   ❌ 건축물대장/공시지가/토지이용규제 → 수동입력 대체
    ══════════════════════════════════════════════ */
 :root{
   --bg:#07090f; --s1:#0d1117; --s2:#161b26; --s3:#1c2333;
@@ -20,16 +26,14 @@
 html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);}
 #app{display:flex;height:100vh;}
 #map{flex:1;position:relative;}
-#panel{width:390px;flex-shrink:0;background:var(--s1);border-left:1px solid var(--b1);display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.6);z-index:10;overflow:hidden;}
+#panel{width:400px;flex-shrink:0;background:var(--s1);border-left:1px solid var(--b1);display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.6);z-index:10;overflow:hidden;}
 
-/* ── 헤더 ── */
 .ph{padding:13px 16px 10px;background:linear-gradient(135deg,#0d1117,#111827);border-bottom:1px solid var(--b1);flex-shrink:0;}
 .ph-top{display:flex;align-items:center;gap:10px;margin-bottom:2px;}
 .ph-badge{background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:6px;padding:4px 9px;font-size:11px;font-weight:900;color:#fff;letter-spacing:.5px;}
-.ph-title{font-size:13px;font-weight:900;letter-spacing:-.3px;color:var(--text);}
+.ph-title{font-size:13px;font-weight:900;color:var(--text);}
 .ph-sub{font-size:10px;color:var(--t2);}
 
-/* ── 검색바 ── */
 .search-wrap{padding:10px 14px 0;flex-shrink:0;}
 .search-row{display:flex;gap:6px;}
 .search-inp{flex:1;background:var(--s3);border:1px solid var(--b2);border-radius:8px;padding:8px 11px;font-size:12px;color:var(--text);font-family:inherit;outline:none;}
@@ -38,36 +42,47 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
 .search-btn{background:var(--acc);border:none;border-radius:8px;padding:8px 14px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;}
 .search-btn:hover{background:#1d4ed8;}
 
-/* ── 패널 스크롤 ── */
 .pb{flex:1;overflow-y:auto;padding:12px 14px;}
 ::-webkit-scrollbar{width:3px;}
 ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
 
-/* ── 섹션 공통 ── */
 .sec{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:12px;margin-bottom:10px;}
 .sec-title{font-size:10px;font-weight:700;color:var(--t2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:5px;}
 .sec-title::after{content:'';flex:1;height:1px;background:var(--b1);}
 
-/* ── 주소 ── */
 .addr-main{font-size:14px;font-weight:700;color:var(--gold);line-height:1.4;}
 .addr-road{font-size:11px;color:var(--t2);margin-top:4px;}
 .addr-ph{font-size:12px;color:var(--t3);}
 
-/* ── 격자 카드 ── */
 .sg{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
 .sc{background:rgba(0,0,0,.3);border:1px solid var(--b1);border-radius:8px;padding:9px 10px;}
-.sc-l{font-size:10px;color:var(--t2) !important;margin-bottom:3px;font-weight:600;}
+.sc-l{font-size:10px;color:var(--t2)!important;margin-bottom:3px;font-weight:600;}
 .sc-v{font-size:12px;font-weight:700;line-height:1.3;color:var(--text);}
-.blue{color:var(--acc2);} .gold{color:var(--gold);} .green{color:var(--green);}
-.red{color:var(--red);} .cyan{color:var(--cyan);} .purple{color:var(--purple);}
+.blue{color:var(--acc2);}.gold{color:var(--gold);}.green{color:var(--green);}
+.red{color:var(--red);}.cyan{color:var(--cyan);}.purple{color:var(--purple);}
 
-/* ── 노후도 배지 ── */
 .aging{margin-top:8px;padding:9px 11px;border-radius:8px;display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;}
 .aging.ok{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#34d399;}
 .aging.warn{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#f87171;}
 .aging.mid{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#fbbf24;}
 
-/* ── 개발규모 ── */
+/* ── 수동입력 섹션 ── */
+.manual-sec{background:rgba(37,99,235,.07);border:1px solid rgba(37,99,235,.25);border-radius:10px;padding:12px;margin-bottom:10px;}
+.manual-title{font-size:11px;font-weight:700;color:#93c5fd;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+.manual-desc{font-size:9.5px;color:var(--t3);margin-bottom:11px;line-height:1.6;}
+.manual-desc a{color:var(--acc2);text-decoration:none;}
+.manual-desc a:hover{text-decoration:underline;}
+.inp-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px;}
+.inp-item{display:flex;flex-direction:column;gap:3px;}
+.inp-item.full{grid-column:1/3;}
+.inp-lbl{font-size:9.5px;color:var(--t2);font-weight:600;}
+.inp-field{background:var(--s3);border:1px solid var(--b2);border-radius:6px;padding:7px 9px;font-size:12px;color:var(--text);font-family:inherit;outline:none;width:100%;}
+.inp-field:focus{border-color:var(--acc2);}
+.inp-field::placeholder{color:var(--t4);}
+.inp-unit{font-size:10px;color:var(--t3);margin-top:2px;}
+.inp-apply{width:100%;margin-top:4px;background:linear-gradient(135deg,var(--acc),#1d4ed8);border:none;border-radius:8px;padding:9px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;}
+.inp-apply:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(37,99,235,.4);}
+
 .dev-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:900;letter-spacing:.5px;margin-bottom:9px;}
 .dev-badge.A{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#34d399;}
 .dev-badge.B{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.4);color:#60a5fa;}
@@ -78,22 +93,20 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
 .dev-key{color:var(--t2);font-weight:500;}
 .dev-val{font-weight:700;color:var(--text);}
 .law-note{margin-top:8px;padding:8px 10px;background:rgba(37,99,235,.09);border:1px solid rgba(37,99,235,.25);border-radius:7px;font-size:9.5px;color:var(--t2);line-height:1.8;}
+.ref-note{margin-top:8px;padding:7px 10px;background:rgba(0,0,0,.4);border:1px solid var(--b1);border-radius:7px;font-size:9px;color:var(--t3);line-height:1.8;}
+.ref-note b{color:var(--t2);}
 
-/* ── 퀵액션 ── */
 .qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;}
 .qa-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:11px 5px;border-radius:9px;cursor:pointer;background:rgba(0,0,0,.25);border:1px solid var(--b1);transition:all .18s;text-decoration:none;font-family:inherit;}
 .qa-btn:hover{border-color:var(--acc2);background:rgba(37,99,235,.12);transform:translateY(-2px);}
-.qa-btn:active{transform:translateY(0);}
 .qa-icon{font-size:20px;line-height:1;}
 .qa-label{font-size:9px;font-weight:700;color:var(--t2);text-align:center;line-height:1.3;}
 .qa-btn:hover .qa-label{color:#93c5fd;}
 .qa-btn.need-loc{opacity:.42;}
-.qa-btn.need-loc:hover{opacity:.72;}
 .qa-btn.yk{border-color:rgba(139,92,246,.3);}
 .qa-btn.yk .qa-label{color:#c4b5fd;}
 .qa-btn.yk:hover{border-color:var(--purple);background:rgba(139,92,246,.12);}
 
-/* ── 역세권 ── */
 .yk-badge{padding:4px 11px;border-radius:20px;font-size:11px;font-weight:900;display:inline-block;margin-bottom:9px;}
 .yk-badge.go{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#34d399;}
 .yk-badge.maybe{background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#fbbf24;}
@@ -106,33 +119,21 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
 .yk-leg-item{display:flex;align-items:center;gap:4px;font-size:9.5px;color:var(--t2);}
 .yk-leg-dot{width:10px;height:10px;border-radius:50%;border:2px solid;}
 
-/* ── 로딩 ── */
 .loading{display:none;text-align:center;padding:16px;}
 .loading.show{display:block;}
 .spin{display:inline-block;width:18px;height:18px;border:2px solid var(--b2);border-top-color:var(--acc2);border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .load-step{font-size:11px;color:var(--t2);margin-top:6px;}
 
-/* ── 상태 배너 ── */
-.status-row{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;}
-.st-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;font-size:9.5px;font-weight:700;}
-.st-badge.ok{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#34d399;}
-.st-badge.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#fbbf24;}
-.st-badge.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#f87171;}
-.st-badge.idle{background:rgba(55,65,81,.4);border:1px solid var(--b2);color:var(--t3);}
-.st-badge.proxy{background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);color:#c4b5fd;}
+/* API 상태 배지 */
+.st-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+.st{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:5px;font-size:9px;font-weight:700;}
+.st.ok{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#34d399;}
+.st.warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#fbbf24;}
+.st.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#f87171;}
+.st.idle{background:rgba(55,65,81,.3);border:1px solid var(--b2);color:var(--t3);}
 
-/* ── 캐시 표시 ── */
-.cache-badge{display:inline-block;font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#34d399;margin-left:5px;vertical-align:middle;}
-
-/* ── 노티스 ── */
 .notice{padding:9px 11px;border-radius:8px;font-size:11px;line-height:1.6;background:rgba(37,99,235,.09);border:1px solid rgba(37,99,235,.25);color:#93c5fd;margin-bottom:10px;}
-
-/* ── 기준일 표시 ── */
-.ref-note{margin-top:10px;padding:8px 11px;background:rgba(7,9,15,.6);border:1px solid var(--b1);border-radius:7px;font-size:9px;color:var(--t3);line-height:1.8;}
-.ref-note b{color:var(--t2);}
-
-/* ── 하단 버튼 ── */
 .pf{display:flex;gap:6px;padding:10px 13px;border-top:1px solid var(--b1);background:var(--s1);flex-shrink:0;}
 .btn{flex:1;padding:8px 6px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:all .15s;}
 .btn-p{background:linear-gradient(135deg,var(--acc),#1d4ed8);color:#fff;}
@@ -140,13 +141,11 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
 .btn-s{background:var(--s2);border:1px solid var(--b2);color:var(--t2);}
 .btn-s:hover{border-color:var(--acc2);color:var(--text);}
 
-/* ── 맵 컨트롤 ── */
 .map-btns{position:absolute;bottom:20px;left:20px;display:flex;gap:6px;z-index:2;}
 .mbtn{background:rgba(7,9,15,.92);backdrop-filter:blur(8px);border:1px solid var(--b2);border-radius:7px;padding:7px 12px;font-size:11px;font-weight:700;color:var(--t2);cursor:pointer;font-family:inherit;transition:all .15s;}
 .mbtn:hover{border-color:var(--acc2);color:var(--text);}
 .mbtn.active{border-color:var(--acc2);color:var(--acc2);background:rgba(37,99,235,.15);}
 
-/* ── 법규·경매 패널 ── */
 .law-panel{position:absolute;bottom:20px;right:20px;z-index:3;display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
 .law-toggle{background:rgba(7,9,15,.92);backdrop-filter:blur(8px);border:1px solid var(--purple);border-radius:7px;padding:7px 12px;font-size:11px;font-weight:700;color:#c4b5fd;cursor:pointer;font-family:inherit;white-space:nowrap;}
 .law-toggle:hover{background:rgba(139,92,246,.2);}
@@ -155,22 +154,19 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
 .lbtn{background:rgba(7,9,15,.92);backdrop-filter:blur(8px);border:1px solid var(--b2);border-radius:7px;padding:6px 11px;font-size:10px;font-weight:700;color:var(--t2);cursor:pointer;font-family:inherit;white-space:nowrap;text-decoration:none;display:flex;align-items:center;gap:5px;}
 .lbtn:hover{border-color:var(--purple);color:#c4b5fd;background:rgba(139,92,246,.12);}
 
-/* ── 핀 ── */
-.pin-wrap{display:flex;flex-direction:column;align-items:center;cursor:pointer;}
-.sel-pin{width:26px;height:34px;background:#f97316;border-radius:50% 50% 50% 50% / 58% 58% 42% 42%;border:2.5px solid rgba(255,255,255,.9);position:relative;animation:pinBounce .65s ease-in-out infinite alternate;box-shadow:0 0 0 6px rgba(249,115,22,.22),0 0 18px rgba(249,115,22,.55);}
+.pin-wrap{display:flex;flex-direction:column;align-items:center;}
+.sel-pin{width:26px;height:34px;background:#f97316;border-radius:50% 50% 50% 50%/58% 58% 42% 42%;border:2.5px solid rgba(255,255,255,.9);position:relative;animation:pB .65s ease-in-out infinite alternate;box-shadow:0 0 0 6px rgba(249,115,22,.22),0 0 18px rgba(249,115,22,.55);}
 .sel-pin::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);width:8px;height:8px;background:rgba(255,255,255,.9);border-radius:50%;}
-.pin-shadow{width:20px;height:8px;background:rgba(249,115,22,.4);border-radius:50%;margin-top:2px;animation:shadowPulse .65s ease-in-out infinite alternate;}
-@keyframes pinBounce{from{transform:translateY(0) scale(1)}to{transform:translateY(-10px) scale(1.06)}}
-@keyframes shadowPulse{from{transform:scaleX(1.2);opacity:.5}to{transform:scaleX(.4);opacity:.1}}
-.my-dot{width:18px;height:18px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(239,68,68,.3),0 2px 8px rgba(0,0,0,.5);animation:myP 1.5s ease-in-out infinite;}
+.pin-shadow{width:20px;height:8px;background:rgba(249,115,22,.4);border-radius:50%;margin-top:2px;animation:pS .65s ease-in-out infinite alternate;}
+@keyframes pB{from{transform:translateY(0) scale(1)}to{transform:translateY(-10px) scale(1.06)}}
+@keyframes pS{from{transform:scaleX(1.2);opacity:.5}to{transform:scaleX(.4);opacity:.1}}
+.my-dot{width:18px;height:18px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(239,68,68,.3);animation:myP 1.5s ease-in-out infinite;}
 @keyframes myP{0%,100%{box-shadow:0 0 0 4px rgba(239,68,68,.4)}50%{box-shadow:0 0 0 10px rgba(239,68,68,.1)}}
 
-/* ── 토스트 ── */
 #toast{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-10px);background:var(--s3);border:1px solid var(--b2);border-radius:8px;padding:8px 18px;font-size:12px;color:var(--text);opacity:0;transition:all .25s;z-index:9999;pointer-events:none;white-space:nowrap;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-
-/* ── 출처 배지 ── */
 .src-badge{display:inline-block;font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(6,182,212,.12);border:1px solid rgba(6,182,212,.3);color:#67e8f9;margin-left:5px;vertical-align:middle;}
+.pnu-txt{font-size:9.5px;color:var(--t3);font-family:'DM Mono',monospace;margin-top:5px;}
 </style>
 </head>
 <body>
@@ -190,7 +186,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
         <a class="lbtn" href="https://www.onbid.co.kr" target="_blank">🏛 온비드 (공매)</a>
         <a class="lbtn" href="https://www.courtauction.go.kr" target="_blank">⚖️ 법원경매정보</a>
         <a class="lbtn" href="https://map.seoul.go.kr" target="_blank">🗺 서울도시공간포털</a>
-        <a class="lbtn" href="javascript:void(0)" onclick="openLawBook()">📋 규제법령집 (용도지역별)</a>
+        <a class="lbtn" href="javascript:void(0)" onclick="openLawBook()">📋 규제법령집</a>
       </div>
     </div>
   </div>
@@ -200,12 +196,11 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
       <div class="ph-top">
         <div class="ph-badge">H&O</div>
         <div>
-          <div class="ph-title">Hi-On War Room v18</div>
+          <div class="ph-title">Hi-On War Room v19</div>
           <div class="ph-sub">개발 입지 통합 분석 · <span id="ph-date"></span></div>
         </div>
       </div>
     </div>
-
     <div class="search-wrap">
       <div class="search-row">
         <input class="search-inp" id="search-inp" type="text"
@@ -216,16 +211,14 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
     </div>
 
     <div class="pb">
-      <div class="notice" style="margin-top:10px;">🖱 지도를 클릭하거나 주소를 검색하면 토지·건축물·개발 규모를 자동 분석합니다.</div>
+      <div class="notice" style="margin-top:10px;">🖱 지도 클릭 → 주소·PNU·실거래가 자동 조회. 토지·건물 정보는 수동 입력 후 분석.</div>
 
-      <!-- 모듈별 상태 배지 -->
-      <div class="status-row" id="status-row">
-        <span class="st-badge idle" id="st-addr">📍 주소</span>
-        <span class="st-badge idle" id="st-land">🌐 토지</span>
-        <span class="st-badge idle" id="st-bld">🏢 건축물</span>
-        <span class="st-badge idle" id="st-zone">🗺 용도지역</span>
-        <span class="st-badge idle" id="st-price">💰 공시지가</span>
-        <span class="st-badge idle" id="st-proxy">🔌 API</span>
+      <!-- 상태 배지 -->
+      <div class="st-row">
+        <span class="st idle" id="st-addr">📍 주소</span>
+        <span class="st idle" id="st-pnu">🔑 PNU</span>
+        <span class="st ok"   id="st-trade">📊 실거래가 ✅</span>
+        <span class="st warn" id="st-manual">✏️ 수동입력 대기</span>
       </div>
 
       <!-- 주소 정보 -->
@@ -233,6 +226,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
         <div class="sec-title">주소 정보</div>
         <div id="addr-main" class="addr-ph">지도를 클릭하거나 주소를 검색하세요</div>
         <div id="addr-road" class="addr-road" style="display:none"></div>
+        <div id="pnu-txt" class="pnu-txt" style="display:none"></div>
       </div>
 
       <!-- 로딩 -->
@@ -241,35 +235,84 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
         <div class="load-step" id="load-step">조회 중...</div>
       </div>
 
+      <!-- ══ 수동 입력 섹션 ══ -->
+      <div class="manual-sec" id="sec-manual" style="display:none">
+        <div class="manual-title">✏️ 토지·건물 정보 직접 입력</div>
+        <div class="manual-desc">
+          아래 정보를
+          <a href="https://www.eum.go.kr" target="_blank">토지이음</a>·
+          <a href="https://www.gov.kr/main?a=AA020InfoCappViewApp&HighCtgCD=&CappBizCD=15000000098" target="_blank">건축물대장(정부24)</a>·
+          <a href="https://www.gov.kr/main?a=AA020InfoCappViewApp&HighCtgCD=&CappBizCD=15000000076" target="_blank">공시지가(정부24)</a>
+          에서 확인 후 입력하세요.
+        </div>
+        <div class="inp-grid">
+          <div class="inp-item">
+            <span class="inp-lbl">대지면적 (㎡)</span>
+            <input class="inp-field" id="m-area" type="number" placeholder="예: 350" min="0" step="0.1">
+          </div>
+          <div class="inp-item">
+            <span class="inp-lbl">공시지가 (원/㎡)</span>
+            <input class="inp-field" id="m-price" type="number" placeholder="예: 3200000" min="0">
+          </div>
+          <div class="inp-item full">
+            <span class="inp-lbl">용도지역 <span style="color:var(--t3);font-weight:400">(토지이음 확인)</span></span>
+            <select class="inp-field" id="m-zone">
+              <option value="">-- 선택 --</option>
+              <option value="제1종전용주거">제1종전용주거 (FAR 100%)</option>
+              <option value="제2종전용주거">제2종전용주거 (FAR 120%)</option>
+              <option value="제1종일반주거">제1종일반주거 (FAR 150%)</option>
+              <option value="제2종일반주거" selected>제2종일반주거 (FAR 200%) ← 기본값</option>
+              <option value="제3종일반주거">제3종일반주거 (FAR 250%)</option>
+              <option value="준주거">준주거 (FAR 400%)</option>
+              <option value="중심상업">중심상업 (FAR 800%)</option>
+              <option value="일반상업">일반상업 (FAR 600%)</option>
+              <option value="근린상업">근린상업 (FAR 500%)</option>
+              <option value="유통상업">유통상업 (FAR 500%)</option>
+              <option value="전용공업">전용공업 (FAR 200%)</option>
+              <option value="일반공업">일반공업 (FAR 350%)</option>
+              <option value="준공업">준공업 (FAR 400%)</option>
+              <option value="보전녹지">보전녹지 (FAR 80%)</option>
+              <option value="생산녹지">생산녹지 (FAR 100%)</option>
+              <option value="자연녹지">자연녹지 (FAR 100%)</option>
+            </select>
+          </div>
+          <div class="inp-item">
+            <span class="inp-lbl">사용승인일 (YYYYMMDD)</span>
+            <input class="inp-field" id="m-date" type="text" placeholder="예: 19920315" maxlength="8">
+          </div>
+          <div class="inp-item">
+            <span class="inp-lbl">연면적 (㎡)</span>
+            <input class="inp-field" id="m-gfa" type="number" placeholder="예: 1200" min="0" step="0.1">
+          </div>
+          <div class="inp-item full">
+            <span class="inp-lbl">건물 주용도</span>
+            <input class="inp-field" id="m-use" type="text" placeholder="예: 근린생활시설, 단독주택, 아파트">
+          </div>
+        </div>
+        <button class="inp-apply" onclick="applyManual()">✅ 입력값 적용 → 개발 규모 분석 실행</button>
+      </div>
+
       <!-- 토지 현황 -->
       <div class="sec" id="sec-land" style="display:none">
-        <div class="sec-title">토지 현황 <span class="src-badge">V-World·공공데이터</span><span id="land-cache" class="cache-badge" style="display:none">캐시</span></div>
+        <div class="sec-title">토지 현황 <span class="src-badge">수동입력</span></div>
         <div class="sg">
           <div class="sc"><div class="sc-l">대지면적</div><div class="sc-v blue" id="v-area">—</div></div>
           <div class="sc"><div class="sc-l">공시지가(㎡)</div><div class="sc-v gold" id="v-price">—</div></div>
-          <div class="sc"><div class="sc-l">지목</div><div class="sc-v" id="v-jimok">—</div></div>
+          <div class="sc"><div class="sc-l">용도지역</div><div class="sc-v purple" id="v-zone">—</div></div>
           <div class="sc"><div class="sc-l">토지 추정가</div><div class="sc-v cyan" id="v-total">—</div></div>
         </div>
       </div>
 
       <!-- 건축물 현황 -->
       <div class="sec" id="sec-bld" style="display:none">
-        <div class="sec-title">건축물 현황 <span class="src-badge">공공데이터</span><span id="bld-cache" class="cache-badge" style="display:none">캐시</span></div>
+        <div class="sec-title">건축물 현황 <span class="src-badge">수동입력</span></div>
         <div class="sg">
-          <div class="sc"><div class="sc-l">건물명</div><div class="sc-v" id="v-bldnm" style="font-size:10px">—</div></div>
           <div class="sc"><div class="sc-l">주용도</div><div class="sc-v" id="v-use" style="font-size:10px">—</div></div>
-          <div class="sc"><div class="sc-l">층수</div><div class="sc-v" id="v-floor">—</div></div>
-          <div class="sc"><div class="sc-l">구조</div><div class="sc-v" id="v-struct" style="font-size:10px">—</div></div>
           <div class="sc"><div class="sc-l">연면적</div><div class="sc-v" id="v-totarea">—</div></div>
           <div class="sc"><div class="sc-l">사용승인일</div><div class="sc-v gold" id="v-date">—</div></div>
+          <div class="sc"><div class="sc-l">노후도</div><div class="sc-v" id="v-age">—</div></div>
         </div>
         <div id="aging-box" class="aging" style="display:none"></div>
-      </div>
-
-      <!-- 용도지역 현황 -->
-      <div class="sec" id="sec-zone" style="display:none">
-        <div class="sec-title">용도지역 현황 <span class="src-badge">토지이용규제 API</span><span id="zone-cache" class="cache-badge" style="display:none">캐시</span></div>
-        <div id="zone-body"></div>
       </div>
 
       <!-- 개발 규모 분석 -->
@@ -278,23 +321,23 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
         <div id="dev-body"></div>
       </div>
 
-      <!-- 퀵 액션 -->
+      <!-- 바로가기 -->
       <div class="sec">
         <div class="sec-title">바로가기</div>
         <div class="qa-grid">
-          <button class="qa-btn" id="qa-lur" onclick="openLUR()">
+          <button class="qa-btn" onclick="openLUR()">
             <div class="qa-icon">🗺</div><div class="qa-label">토지이용<br>계획조회</div>
           </button>
-          <button class="qa-btn" id="qa-bld" onclick="openBLD()">
+          <button class="qa-btn" onclick="openBLD()">
             <div class="qa-icon">🏢</div><div class="qa-label">건축물<br>대장조회</div>
           </button>
-          <button class="qa-btn" id="qa-prc" onclick="openPRC()">
+          <button class="qa-btn" onclick="openPRC()">
             <div class="qa-icon">💰</div><div class="qa-label">개별<br>공시지가</div>
           </button>
           <button class="qa-btn need-loc" id="qa-naver" onclick="openNaver()">
             <div class="qa-icon">🏠</div><div class="qa-label">주변<br>시세</div>
           </button>
-          <button class="qa-btn" id="qa-cad" onclick="openCAD()">
+          <button class="qa-btn" onclick="openCAD()">
             <div class="qa-icon">📐</div><div class="qa-label">지적도<br>열람</div>
           </button>
           <button class="qa-btn need-loc" id="qa-trade" onclick="openTrade()">
@@ -307,22 +350,22 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
             <div class="qa-icon">🚇</div><div class="qa-label">역세권<br>활성화</div>
           </button>
         </div>
-        <div style="font-size:9px;color:var(--t3);margin-top:8px;line-height:1.5;">🔵 밝은 버튼 = 즉시 이동 / 🔅 어두운 버튼 = 부지 선택 후 활성화</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:7px;line-height:1.5;">🔵 즉시 열림 &nbsp;|&nbsp; 🔅 부지 선택 후 좌표 자동 연결</div>
       </div>
 
-      <!-- 실거래가 결과 -->
+      <!-- 실거래가 -->
       <div class="sec" id="sec-trade" style="display:none">
-        <div class="sec-title">실거래가 <span class="src-badge">국토부 API</span></div>
+        <div class="sec-title">실거래가 <span class="src-badge">국토부 API ✅</span></div>
         <div id="trade-body"></div>
       </div>
 
-      <!-- 역세권 판단 결과 -->
+      <!-- 역세권 -->
       <div class="sec" id="yk-result" style="display:none">
         <div class="sec-title">역세권 활성화사업 분석</div>
         <div id="yk-body"></div>
       </div>
 
-    </div><!-- /pb -->
+    </div>
 
     <div class="pf">
       <button class="btn btn-p" onclick="window.print()">📋 출력</button>
@@ -333,47 +376,25 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:'Noto Sans KR',sans
 </div>
 
 <script>
-/* ═══════════════════════════════════════════════════════════════
-   Hi-On War Room v18  |  2026.04.16
-   ── 수정 이력 ──────────────────────────────────────────────────
-   [v18-01] API 키 CONFIG 블록 분리 + 보안 주석 (도메인 등록 가이드)
-   [v18-02] 연도 하드코딩 제거 → new Date().getFullYear() 자동화
-   [v18-03] PNU 유효성 검사 + 실패 배지 표시
-   [v18-04] 모듈별 상태 배지 (idle→loading→ok/err)
-   [v18-05] sessionStorage PNU 캐시 (주소별 재조회 방지)
-   [v18-06] 역세권 환승역 중복 제거 로직
-   [v18-07] 용도지역 대표값 선정 = FAR 최고값 기준
-   [v18-08] 개발규모 분석 하단 기준일·기준출처 표기
-   [v18-09] CORS Proxy 3단계 자동 전환 (direct→allorigins→corsproxy)
-   ═══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════
+   Hi-On War Room v19  |  2026.04.16
+   실제 테스트 기반 재설계
+   ════════════════════════════════════════════════ */
 
-// ══════════════════════════════════════════
-// [v18-01] CONFIG 블록 — API 키 중앙 관리
-// ⚠️  보안 안내:
-//  · Kakao JS SDK  → 카카오 개발자 콘솔에서 "플랫폼 > Web" 등록
-//    허용 도메인: https://adamseo-cmd.github.io
-//  · Kakao REST   → Referer 제한 미지원. 도메인 등록 후 키 순환 권장
-//  · V-World      → 브이월드 API 신청 시 도메인 등록 필수
-//  · data.go.kr   → 공공데이터포털 > 서비스키 > 활용신청 > Origin 추가
-// ══════════════════════════════════════════
+// ── CONFIG ─────────────────────────────────────
 const CFG = {
-  kakaoJs:   'dd5d2b11a924fd56b3fe3265b0b4caaa',  // ⚠️ 도메인 등록 필수
-  kakaoRest: '75ec5e71b025887ff9f43982bf4cb323',  // ⚠️ REST 키 — 탈취 주의
-  vworld:    'D908CE2F-5A9B-3B2F-BF3D-ABC7D1DC40B8', // ⚠️ 도메인 등록 필수
-  public:    'f99bafd9e59fa0259b7b927039fed394290ca4623ad3558caf138f6c6a5080a4', // ⚠️ Origin 추가 권장
+  // ⚠️ 카카오 개발자콘솔 > 플랫폼 > Web > 도메인 등록 필수
+  // 등록 주소: https://adamseo-cmd.github.io
+  kakaoJs:   'dd5d2b11a924fd56b3fe3265b0b4caaa',
+  kakaoRest: '75ec5e71b025887ff9f43982bf4cb323',
+  // ⚠️ 공공데이터포털 > 활용신청 현황에서 서비스 활성화 후 사용 가능
+  public: 'f99bafd9e59fa0259b7b927039fed394290ca4623ad3558caf138f6c6a5080a4',
 };
 
-// ══════════════════════════════════════════
-// [v18-02] 연도 자동화 — 하드코딩 제거
-// ══════════════════════════════════════════
+// ── 연도 자동화 ─────────────────────────────────
 const THIS_YEAR = new Date().getFullYear();
-// 공시지가 조회: 현재연도부터 최대 3년 역순 자동 생성
-const PRICE_YEARS = Array.from({length: 3}, (_, i) => String(THIS_YEAR - i));
 
-// ══════════════════════════════════════════
-// 법정 상수 — 용도지역별 FAR·건폐율
-// 출처: 국토의 계획 및 이용에 관한 법률 시행령 (2026 기준)
-// ══════════════════════════════════════════
+// ── 법정 상수 ───────────────────────────────────
 const ZONE_FAR = {
   '제1종전용주거':{far:100,bcr:50}, '제2종전용주거':{far:120,bcr:40},
   '제1종일반주거':{far:150,bcr:60}, '제2종일반주거':{far:200,bcr:60},
@@ -381,1070 +402,553 @@ const ZONE_FAR = {
   '중심상업':{far:800,bcr:90},      '일반상업':{far:600,bcr:80},
   '근린상업':{far:500,bcr:70},      '유통상업':{far:500,bcr:80},
   '전용공업':{far:200,bcr:70},      '일반공업':{far:350,bcr:70},
-  '준공업':{far:400,bcr:60},
-  '보전녹지':{far:80,bcr:20},       '생산녹지':{far:100,bcr:20},
-  '자연녹지':{far:100,bcr:20},
+  '준공업':{far:400,bcr:60},        '보전녹지':{far:80,bcr:20},
+  '생산녹지':{far:100,bcr:20},      '자연녹지':{far:100,bcr:20},
 };
 
-// LH 신축매입약정 5개 유형 (2025.07 기준)
 const LH_TYPES = [
-  {label:'청년 매입임대',  color:'#06b6d4',minM2:16,maxM2:45,effRatio:0.55,
-   getPark:(u,m)=>m<=30?{rate:0.3,cnt:Math.ceil(u*0.3),law:'30㎡이하 0.3대'}:{rate:0.6,cnt:Math.ceil(u*0.6),law:'30~60㎡ 0.6대'}},
-  {label:'신혼부부 매입임대',color:'#10b981',minM2:36,maxM2:59,effRatio:0.60,
-   getPark:(u,m)=>({rate:0.7,cnt:Math.ceil(u*0.7),law:'서울조례 0.7대'})},
-  {label:'다자녀·일반 임대',color:'#f59e0b',minM2:60,maxM2:85,effRatio:0.65,
-   getPark:(u,m)=>({rate:1.0,cnt:Math.ceil(u*1.0),law:'60~85㎡ 1.0대'})},
-  {label:'든든전세주택',   color:'#8b5cf6',minM2:60,maxM2:85,effRatio:0.65,
-   getPark:(u,m)=>m<=60?{rate:0.7,cnt:Math.ceil(u*0.7),law:'60㎡이하 0.7대'}:{rate:1.0,cnt:Math.ceil(u*1.0),law:'60~85㎡ 1.0대'}},
-  {label:'공공전세',       color:'#3b82f6',minM2:60,maxM2:85,effRatio:0.65,
-   getPark:(u,m)=>({rate:1.0,cnt:Math.ceil(u*1.0),law:'세대당 1.0대이상'})},
+  {label:'청년 매입임대',  color:'#06b6d4',minM2:16,maxM2:45,eff:.55,gp:(u,m)=>m<=30?{r:.3,c:Math.ceil(u*.3),l:'0.3대/세대'}:{r:.6,c:Math.ceil(u*.6),l:'0.6대/세대'}},
+  {label:'신혼부부 매입임대',color:'#10b981',minM2:36,maxM2:59,eff:.60,gp:(u)=>({r:.7,c:Math.ceil(u*.7),l:'0.7대/세대'})},
+  {label:'다자녀·일반 임대',color:'#f59e0b',minM2:60,maxM2:85,eff:.65,gp:(u)=>({r:1,c:Math.ceil(u*1),l:'1.0대/세대'})},
+  {label:'든든전세주택',   color:'#8b5cf6',minM2:60,maxM2:85,eff:.65,gp:(u,m)=>m<=60?{r:.7,c:Math.ceil(u*.7),l:'0.7대/세대'}:{r:1,c:Math.ceil(u*1),l:'1.0대/세대'}},
+  {label:'공공전세',       color:'#3b82f6',minM2:60,maxM2:85,eff:.65,gp:(u)=>({r:1,c:Math.ceil(u*1),l:'1.0대 이상'})},
 ];
 
-// ══════════════════════════════════════════
-// 주차기준 계산 (법정 최소)
-// ══════════════════════════════════════════
-function calcParking(useType, unitArea, gfa, units) {
-  switch(useType) {
-    case '도시형':
-      if (unitArea<=30)      return {min:Math.ceil(units*0.3),rec:Math.ceil(units*0.5),law:'30㎡이하 0.3대/세대'};
-      else if (unitArea<=60) return {min:Math.ceil(units*0.6),rec:Math.ceil(units*0.7),law:'30~60㎡ 0.6대/세대'};
-      else                   return {min:Math.ceil(units*1.0),rec:Math.ceil(units*1.0),law:'60㎡초과 1.0대/세대'};
-    case '오피스텔':
-      if (unitArea<=30)      return {min:Math.ceil(gfa/200),rec:Math.ceil(gfa/150),law:'200㎡당 1대'};
-      else if (unitArea<=85) return {min:Math.ceil(gfa/150),rec:Math.ceil(gfa/120),law:'150㎡당 1대'};
-      else                   return {min:Math.ceil(gfa/120),rec:Math.ceil(gfa/100),law:'120㎡당 1대'};
-    case '다세대':
-      return {min:Math.ceil(units*1.0),rec:Math.ceil(units*1.0),law:'면적무관 1.0대/세대'};
-    case '근린':
-      return {min:Math.ceil(gfa/134),rec:Math.ceil(gfa/100),law:'134㎡당 1대'};
-    default:
-      return {min:Math.ceil(gfa/150),rec:Math.ceil(gfa/120),law:'150㎡당 1대'};
+function calcParking(type, ua, gfa, u){
+  if(type==='도시형'){
+    if(ua<=30)return{min:Math.ceil(u*.3),rec:Math.ceil(u*.5),law:'30㎡이하 0.3대'};
+    if(ua<=60)return{min:Math.ceil(u*.6),rec:Math.ceil(u*.7),law:'30~60㎡ 0.6대'};
+    return{min:Math.ceil(u*1),rec:Math.ceil(u*1),law:'60㎡초과 1.0대'};
   }
-}
-
-// ══════════════════════════════════════════
-// [v18-09] CORS Proxy 3단계 자동 전환
-// ══════════════════════════════════════════
-const PROXY_LIST = [
-  null,
-  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-];
-let _proxyIdx = 0;
-
-async function fetchProxy(url, timeout = 6000) {
-  for (let i = 0; i < PROXY_LIST.length; i++) {
-    const idx = (_proxyIdx + i) % PROXY_LIST.length;
-    const fn = PROXY_LIST[idx];
-    const fUrl = fn ? fn(url) : url;
-    try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), timeout);
-      const res = await fetch(fUrl, {signal: ctrl.signal});
-      clearTimeout(tid);
-      if (!res.ok) continue;
-      const txt = await res.text();
-      if (!txt || txt.includes('SERVICE_KEY_IS_NOT_REGISTERED_ERROR')) continue;
-      if (idx !== _proxyIdx) {
-        _proxyIdx = idx;
-        setSt('st-proxy', idx === 0 ? 'ok' : 'proxy',
-          idx === 0 ? '🔌 직접연결' : `🔌 Proxy ${idx}`);
-      }
-      return txt;
-    } catch(e) { /* 다음 프록시 */ }
+  if(type==='오피스텔'){
+    if(ua<=30)return{min:Math.ceil(gfa/200),rec:Math.ceil(gfa/150),law:'200㎡/대'};
+    if(ua<=85)return{min:Math.ceil(gfa/150),rec:Math.ceil(gfa/120),law:'150㎡/대'};
+    return{min:Math.ceil(gfa/120),rec:Math.ceil(gfa/100),law:'120㎡/대'};
   }
-  setSt('st-proxy', 'err', '🔌 API 오류');
-  return null;
+  if(type==='다세대')return{min:Math.ceil(u*1),rec:Math.ceil(u*1),law:'1.0대/세대'};
+  if(type==='근린')return{min:Math.ceil(gfa/134),rec:Math.ceil(gfa/100),law:'134㎡/대'};
+  return{min:Math.ceil(gfa/150),rec:Math.ceil(gfa/120),law:'150㎡/대'};
 }
 
-async function fetchJSON(url, timeout = 6000) {
-  const txt = await fetchProxy(url, timeout);
-  if (!txt) return null;
-  try { return JSON.parse(txt); } catch(e) { return null; }
-}
+// ── authCd 매핑 ──
+const AUTH_MAP={'11':'11650','26':'26000','27':'27000','28':'28000','29':'29000','30':'30000','31':'31000','36':'36000','41':'41000','42':'42000','43':'43000','44':'44000','45':'45000','46':'46000','47':'47000','48':'48000','50':'50000'};
 
-// ══════════════════════════════════════════
-// [v18-05] sessionStorage 캐시
-// ══════════════════════════════════════════
-const CACHE_TTL = 30 * 60 * 1000; // 30분
+// ── sessionStorage 캐시 ──
+const TTL=30*60*1000;
+function csSet(k,v){try{sessionStorage.setItem(k,JSON.stringify({v,t:Date.now()}))}catch(e){}}
+function csGet(k){try{const r=sessionStorage.getItem(k);if(!r)return null;const{v,t}=JSON.parse(r);return Date.now()-t>TTL?(sessionStorage.removeItem(k),null):v}catch(e){return null}}
 
-function cacheSet(key, value) {
-  try {
-    sessionStorage.setItem(key, JSON.stringify({v: value, t: Date.now()}));
-  } catch(e) {}
-}
-function cacheGet(key) {
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const {v, t} = JSON.parse(raw);
-    if (Date.now() - t > CACHE_TTL) { sessionStorage.removeItem(key); return null; }
-    return v;
-  } catch(e) { return null; }
-}
-
-// ══════════════════════════════════════════
-// 상태 관리
-// ══════════════════════════════════════════
-let map, geocoder, selOverlay, myMarker, myCircle, cadastralOn = false;
-let ykCircles = [], ykMarkers = [];
-
-// 현재 선택 필지 상태
-const ST = {
+// ── 상태 ──
+let map, geocoder, selOverlay, myMarker, myCircle, cadastralOn=false;
+let ykCircles=[], ykMarkers=[];
+const ST={
   lat:0, lng:0, addr:'', road:'',
   pnu:'', sigungu:'', bjdong:'', bun:'', ji:'',
-  area:0, price:0, jimok:'', age:0,
-  bldNm:'', use:'', floor:'', totArea:'',
-  zoneName:'', zoneList:[],
+  area:0, price:0, age:0, use:'', totArea:0,
+  zoneName:'제2종일반주거',
   loaded:false,
-  pnuValid: false, // [v18-03]
 };
 
-// ══════════════════════════════════════════
-// 상태 배지 헬퍼
-// ══════════════════════════════════════════
-function setSt(id, cls, label) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.className = `st-badge ${cls}`;
-  el.textContent = label;
-}
-function resetSt() {
-  setSt('st-addr',  'idle', '📍 주소');
-  setSt('st-land',  'idle', '🌐 토지');
-  setSt('st-bld',   'idle', '🏢 건축물');
-  setSt('st-zone',  'idle', '🗺 용도지역');
-  setSt('st-price', 'idle', '💰 공시지가');
-}
+function setSt(id,cls,txt){const e=document.getElementById(id);if(e){e.className=`st ${cls}`;e.textContent=txt;}}
 
-// ══════════════════════════════════════════
-// [v18-03] PNU 유효성 검사
-// ══════════════════════════════════════════
-function validatePNU(pnu) {
-  if (!pnu || pnu.length !== 19) return false;
-  // bun(11~14), ji(15~18)이 모두 0000이면 무효 (폴백 조립 실패)
-  const bun = pnu.substring(11, 15);
-  const ji  = pnu.substring(15, 19);
-  if (bun === '0000' && ji === '0000') return false;
-  return true;
-}
-
-// ══════════════════════════════════════════
-// 카카오맵 로드
-// ══════════════════════════════════════════
-window.onload = () => {
-  // 헤더 날짜 동적 표기
-  const now = new Date();
-  document.getElementById('ph-date').textContent =
+// ── 카카오맵 초기화 ──
+window.onload=()=>{
+  const now=new Date();
+  document.getElementById('ph-date').textContent=
     `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
-
-  const s = document.createElement('script');
-  s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${CFG.kakaoJs}&libraries=services&autoload=false`;
-  s.onload = () => {
-    kakao.maps.load(() => {
-      map = new kakao.maps.Map(document.getElementById('map'), {
-        center: new kakao.maps.LatLng(37.5080, 127.0460),
-        level: 3,
-        mapTypeId: kakao.maps.MapTypeId.HYBRID,
+  const s=document.createElement('script');
+  s.src=`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${CFG.kakaoJs}&libraries=services&autoload=false`;
+  s.onload=()=>{
+    kakao.maps.load(()=>{
+      map=new kakao.maps.Map(document.getElementById('map'),{
+        center:new kakao.maps.LatLng(37.508,127.046),
+        level:3,mapTypeId:kakao.maps.MapTypeId.HYBRID,
       });
-      geocoder = new kakao.maps.services.Geocoder();
-      kakao.maps.event.addListener(map, 'click', e => {
-        onMapClick(e.latLng.getLat(), e.latLng.getLng());
-      });
-      setSt('st-proxy', 'ok', '🔌 맵 로드됨');
-      toast('✅ Hi-On War Room v18 로드 완료');
+      geocoder=new kakao.maps.services.Geocoder();
+      kakao.maps.event.addListener(map,'click',e=>onMapClick(e.latLng.getLat(),e.latLng.getLng()));
+      toast('✅ Hi-On War Room v19 로드 완료');
     });
   };
-  s.onerror = () => {
-    setSt('st-proxy', 'err', '🔌 맵 로드 실패');
-    toast('❌ 카카오맵 로드 실패 — 도메인 등록 확인');
-  };
+  s.onerror=()=>toast('❌ 카카오맵 로드 실패 — 도메인 등록 확인 필요');
   document.head.appendChild(s);
 };
 
-// 지도 타입
-function setType(t) {
-  if (!map) return;
+function setType(t){
+  if(!map)return;
   map.setMapTypeId(kakao.maps.MapTypeId[t]);
-  document.querySelectorAll('.mbtn').forEach(b => b.classList.remove('active'));
-  if (t==='ROADMAP') document.getElementById('btn-roadmap').classList.add('active');
-  else if (t==='HYBRID') document.getElementById('btn-hybrid').classList.add('active');
+  document.querySelectorAll('.mbtn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(t==='ROADMAP'?'btn-roadmap':'btn-hybrid').classList.add('active');
 }
-function toggleCadastral() {
-  if (!map) return;
-  if (cadastralOn) {
-    map.removeOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
-    document.getElementById('btn-cadastral').classList.remove('active');
-    cadastralOn = false; toast('📐 지적편집도 OFF');
-  } else {
-    map.addOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
-    document.getElementById('btn-cadastral').classList.add('active');
-    cadastralOn = true; toast('📐 지적편집도 ON');
-  }
+function toggleCadastral(){
+  if(!map)return;
+  if(cadastralOn){map.removeOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);document.getElementById('btn-cadastral').classList.remove('active');cadastralOn=false;toast('📐 지적편집도 OFF');}
+  else{map.addOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);document.getElementById('btn-cadastral').classList.add('active');cadastralOn=true;toast('📐 지적편집도 ON');}
 }
 
-// ══════════════════════════════════════════
-// 지도 클릭 — 메인 오케스트레이터
-// ══════════════════════════════════════════
-async function onMapClick(lat, lng) {
-  ST.lat=lat; ST.lng=lng; ST.loaded=false; ST.pnuValid=false;
-  placePin(lat, lng);
-  showLoading(true);
-  hide('sec-land'); hide('sec-bld'); hide('sec-dev'); hide('yk-result');
-  hide('sec-trade'); hide('sec-zone');
+// ── 지도 클릭 메인 ──
+async function onMapClick(lat,lng){
+  ST.lat=lat; ST.lng=lng; ST.loaded=false;
+  placePin(lat,lng);
+  showLoading(true,'주소 조회 중...');
+  hide('sec-land'); hide('sec-bld'); hide('sec-dev');
+  hide('yk-result'); hide('sec-trade'); hide('sec-manual');
   document.getElementById('aging-box').style.display='none';
   setEl('addr-main','<span class="addr-ph">주소 조회 중...</span>');
-  hide('addr-road');
-  resetSt();
+  hide('addr-road'); hide('pnu-txt');
   clearYkOverlays();
-
-  // 좌표 확보 즉시 need-loc 해제
   enableLocButtons();
+  setSt('st-addr','warn','📍 조회중');
+  setSt('st-pnu','warn','🔑 조회중');
 
-  // ── 단계별 병렬 가능한 부분은 병렬 처리 ──
-  await fetchAddress(lat, lng);
-  await fetchVworldOrKakao(lat, lng);
-
-  // [v18-03] PNU 유효성 검사
-  if (!validatePNU(ST.pnu)) {
-    setSt('st-land',  'err', '🌐 PNU 오류');
-    setSt('st-bld',   'err', '🏢 PNU 오류');
-    setSt('st-zone',  'err', '🗺 PNU 오류');
-    setSt('st-price', 'err', '💰 PNU 오류');
-    toast('⚠️ 필지 정보 조회 실패 — 지도 다시 클릭하거나 주소 검색 권장');
-    showLoading(false);
-    ST.loaded = true;
-    return;
-  }
-
-  // PNU 유효 → 병렬 조회
+  // 주소 + PNU 병렬 조회 (카카오 JS SDK — 실제 작동 확인)
   await Promise.all([
-    fetchBuilding(),
-    fetchLandPrice(),
-    fetchZoneInfo(),
+    fetchAddressKakao(lat,lng),
+    fetchPNUKakao(lat,lng),
   ]);
 
   showLoading(false);
-  ST.loaded = true;
-  enableLocButtons();
-  renderDevAnalysis();
-  toast('✅ 분석 완료');
+  show('sec-manual');
+  ST.loaded=true;
+
+  // 실거래가 자동 조회 (✅ 작동 확인)
+  if(ST.sigungu) fetchTradeData();
+
+  toast('✅ 조회 완료 — 아래 수동입력으로 개발 규모 분석');
 }
 
-// ══════════════════════════════════════════
-// 주소 검색
-// ══════════════════════════════════════════
-async function searchAddr() {
-  const q = document.getElementById('search-inp').value.trim();
-  if (!q) { toast('검색어를 입력하세요'); return; }
-  if (!geocoder) { toast('지도 로딩 중입니다'); return; }
-  geocoder.addressSearch(q, (result, status) => {
-    if (status===kakao.maps.services.Status.OK && result.length>0) {
-      const lat=parseFloat(result[0].y), lng=parseFloat(result[0].x);
-      map.setCenter(new kakao.maps.LatLng(lat,lng)); map.setLevel(3);
-      onMapClick(lat, lng);
+// ── 주소 조회 (카카오 JS SDK coord2Address) ──
+function fetchAddressKakao(lat,lng){
+  return new Promise(resolve=>{
+    geocoder.coord2Address(lng,lat,(result,status)=>{
+      if(status===kakao.maps.services.Status.OK&&result.length>0){
+        const r=result[0];
+        const a=r.address||{}, rd=r.road_address||{};
+        ST.addr=a.address_name||'';
+        ST.road=rd.address_name||'';
+        ST.bun=String(a.main_address_no||'0').padStart(4,'0');
+        ST.ji =String(a.sub_address_no ||'0').padStart(4,'0');
+        if(ST.addr){setEl('addr-main',`<div class="addr-main">${ST.addr}</div>`);setSt('st-addr','ok','📍 완료');}
+        if(ST.road){setEl('addr-road','📮 '+ST.road);show('addr-road');}
+      } else {
+        setSt('st-addr','err','📍 조회 실패');
+      }
+      resolve();
+    });
+  });
+}
+
+// ── PNU 조립 (카카오 JS SDK coord2RegionCode) ──
+function fetchPNUKakao(lat,lng){
+  return new Promise(resolve=>{
+    const ck=`pnu_${lat.toFixed(5)}_${lng.toFixed(5)}`;
+    const cached=csGet(ck);
+    if(cached){
+      Object.assign(ST,cached);
+      setEl('pnu-txt',`PNU: ${ST.pnu} | 시군구: ${ST.sigungu} (캐시)`);
+      show('pnu-txt'); setSt('st-pnu','ok','🔑 캐시');
+      resolve(); return;
+    }
+    geocoder.coord2RegionCode(lng,lat,(result,status)=>{
+      if(status===kakao.maps.services.Status.OK){
+        const B=result.find(r=>r.region_type==='B');
+        if(B){
+          const code=B.code;
+          ST.sigungu=code.substring(0,5);
+          ST.bjdong=code.substring(5,10);
+          ST.pnu=ST.sigungu+ST.bjdong+'0'+ST.bun+ST.ji;
+          csSet(ck,{pnu:ST.pnu,sigungu:ST.sigungu,bjdong:ST.bjdong,bun:ST.bun,ji:ST.ji});
+          setEl('pnu-txt',`PNU: ${ST.pnu} | 시군구: ${ST.sigungu}`);
+          show('pnu-txt'); setSt('st-pnu','ok','🔑 완료');
+        } else {
+          setSt('st-pnu','err','🔑 코드 없음');
+        }
+      } else {
+        setSt('st-pnu','err','🔑 실패');
+      }
+      resolve();
+    });
+  });
+}
+
+// ── 주소 검색 ──
+function searchAddr(){
+  const q=document.getElementById('search-inp').value.trim();
+  if(!q){toast('검색어를 입력하세요');return;}
+  if(!geocoder){toast('지도 로딩 중입니다');return;}
+  geocoder.addressSearch(q,(result,status)=>{
+    if(status===kakao.maps.services.Status.OK&&result.length>0){
+      const lat=parseFloat(result[0].y),lng=parseFloat(result[0].x);
+      map.setCenter(new kakao.maps.LatLng(lat,lng));map.setLevel(3);
+      onMapClick(lat,lng);
     } else {
-      const ps = new kakao.maps.services.Places();
-      ps.keywordSearch(q, (res2, st2) => {
-        if (st2===kakao.maps.services.Status.OK && res2.length>0) {
-          const lat=parseFloat(res2[0].y), lng=parseFloat(res2[0].x);
-          map.setCenter(new kakao.maps.LatLng(lat,lng)); map.setLevel(3);
-          onMapClick(lat, lng);
+      const ps=new kakao.maps.services.Places();
+      ps.keywordSearch(q,(res2,st2)=>{
+        if(st2===kakao.maps.services.Status.OK&&res2.length>0){
+          const lat=parseFloat(res2[0].y),lng=parseFloat(res2[0].x);
+          map.setCenter(new kakao.maps.LatLng(lat,lng));map.setLevel(3);
+          onMapClick(lat,lng);
         } else toast('❌ 주소를 찾을 수 없습니다');
       });
     }
   });
 }
 
-// 핀
-function placePin(lat, lng) {
-  if (selOverlay) selOverlay.setMap(null);
-  const wrap = document.createElement('div');
-  wrap.className = 'pin-wrap';
-  wrap.innerHTML = '<div class="sel-pin"></div><div class="pin-shadow"></div>';
-  selOverlay = new kakao.maps.CustomOverlay({
-    position: new kakao.maps.LatLng(lat,lng),
-    content: wrap, yAnchor: 1.15, zIndex: 5,
+// ── 핀 ──
+function placePin(lat,lng){
+  if(selOverlay)selOverlay.setMap(null);
+  const wrap=document.createElement('div');
+  wrap.className='pin-wrap';
+  wrap.innerHTML='<div class="sel-pin"></div><div class="pin-shadow"></div>';
+  selOverlay=new kakao.maps.CustomOverlay({
+    position:new kakao.maps.LatLng(lat,lng),content:wrap,yAnchor:1.15,zIndex:5
   });
   selOverlay.setMap(map);
 }
 
-// ══════════════════════════════════════════
-// 주소 조회
-// ══════════════════════════════════════════
-function fetchAddress(lat, lng) {
-  return new Promise(resolve => {
-    setSt('st-addr', 'warn', '📍 조회중...');
-    geocoder.coord2Address(lng, lat, (result, status) => {
-      if (status===kakao.maps.services.Status.OK && result.length>0) {
-        const r=result[0];
-        const addr=r.address||{}, road=r.road_address||{};
-        ST.addr=addr.address_name||'';
-        ST.road=road.address_name||'';
-        ST.bun=String(addr.main_address_no||'0').padStart(4,'0');
-        ST.ji =String(addr.sub_address_no ||'0').padStart(4,'0');
-        if (ST.addr) setEl('addr-main',`<div class="addr-main">${ST.addr}</div>`);
-        if (ST.road) { setEl('addr-road','📮 '+ST.road); show('addr-road'); }
-        setSt('st-addr', 'ok', '📍 완료');
-      } else {
-        setSt('st-addr', 'err', '📍 주소 실패');
-      }
-      resolve();
-    });
-  });
-}
+// ── 수동 입력 적용 ──
+function applyManual(){
+  const area  = parseFloat(document.getElementById('m-area').value)||0;
+  const price = parseFloat(document.getElementById('m-price').value)||0;
+  const zone  = document.getElementById('m-zone').value||'제2종일반주거';
+  const use   = document.getElementById('m-use').value.trim();
+  const date  = document.getElementById('m-date').value.trim().replace(/[^0-9]/g,'');
+  const gfa   = parseFloat(document.getElementById('m-gfa').value)||0;
 
-// ══════════════════════════════════════════
-// PNU 조회 (V-World → 카카오 폴백)
-// ══════════════════════════════════════════
-async function fetchVworldOrKakao(lat, lng) {
-  setLoadStep('필지 PNU 조회 중...');
-  setSt('st-land', 'warn', '🌐 PNU 조회');
+  if(!area){toast('⚠️ 대지면적을 입력하세요');return;}
 
-  // 캐시 확인
-  const cacheKey = `pnu_${lat.toFixed(6)}_${lng.toFixed(6)}`;
-  const cached = cacheGet(cacheKey);
-  if (cached) {
-    Object.assign(ST, cached);
-    setSt('st-land', 'ok', '🌐 캐시');
-    return;
+  if(area)  ST.area    = area;
+  if(price) ST.price   = price;
+  if(zone)  ST.zoneName= zone;
+  if(use)   ST.use     = use;
+  if(gfa)   ST.totArea = gfa;
+
+  // 노후도
+  if(date.length>=4){
+    const yr=parseInt(date.substring(0,4));
+    if(yr>1900&&yr<=THIS_YEAR){
+      ST.age=THIS_YEAR-yr;
+      const fdate=date.length>=8?`${date.substring(0,4)}.${date.substring(4,6)}.${date.substring(6,8)}`:date.substring(0,4)+'년';
+      setEl('v-date',fdate);
+      setEl('v-age',`${ST.age}년 (${THIS_YEAR}기준)`);
+      const ab=document.getElementById('aging-box'); ab.style.display='flex';
+      if(ST.age>=30)     {ab.className='aging warn';ab.innerHTML=`🚨 노후도 충족 — 준공 ${ST.age}년 (역세권 활성화 요건 해당)`;}
+      else if(ST.age>=20){ab.className='aging mid'; ab.innerHTML=`⚠️ 노후 진행 중 — 준공 ${ST.age}년 (${30-ST.age}년 후 충족)`;}
+      else               {ab.className='aging ok';  ab.innerHTML=`✅ 신축급 — 준공 ${ST.age}년`;}
+    }
   }
 
-  try {
-    const url = `https://api.vworld.kr/req/address?service=address&request=getAddress&key=${CFG.vworld}&type=PARCEL&point=${lng},${lat}&simple=false`;
-    const d = await fetchJSON(url, 5000);
-    if (d?.response?.status==='OK') {
-      const s = d.response.result[0]?.structure;
-      if (s?.pnu) {
-        ST.pnu=s.pnu; ST.sigungu=ST.pnu.substring(0,5);
-        ST.bjdong=ST.pnu.substring(5,10);
-        ST.bun=ST.pnu.substring(11,15); ST.ji=ST.pnu.substring(15,19);
-        cacheSet(cacheKey, {pnu:ST.pnu,sigungu:ST.sigungu,bjdong:ST.bjdong,bun:ST.bun,ji:ST.ji});
-        await fetchVworldLand();
-        return;
-      }
-    }
-  } catch(e) {}
-
-  // 카카오 폴백
-  setLoadStep('카카오 지역코드 폴백 조회 중...');
-  await fetchKakaoRegion(lat, lng);
-}
-
-async function fetchVworldLand() {
-  try {
-    const url = `https://api.vworld.kr/req/data?service=data&request=GetFeature&key=${CFG.vworld}&data=LP_PA_CBND_BUBUN&attrfilter=pnu:=:${ST.pnu}&geometry=false&size=1`;
-    const d = await fetchJSON(url, 5000);
-    if (d?.response?.status==='OK') {
-      const p = d.response.result?.featureCollection?.features?.[0]?.properties||{};
-      ST.area=parseFloat(p.lnd_ar)||0; ST.jimok=p.lnd_cgr_cd_nm||'';
-      renderLand();
-    }
-  } catch(e) {}
-}
-
-function fetchKakaoRegion(lat, lng) {
-  return new Promise(resolve => {
-    geocoder.coord2RegionCode(lng, lat, (result, status) => {
-      if (status!==kakao.maps.services.Status.OK) { resolve(); return; }
-      const bCode = result.find(r=>r.region_type==='B');
-      if (!bCode) { resolve(); return; }
-      const code = bCode.code;
-      ST.sigungu=code.substring(0,5); ST.bjdong=code.substring(5,10);
-      // [v18-03] 카카오 폴백 시 bun/ji는 주소 조회 결과 사용 (기본값 '0000' 주의)
-      ST.pnu = ST.sigungu + ST.bjdong + '0' + ST.bun + ST.ji;
-      resolve();
-    });
-  });
-}
-
-// ══════════════════════════════════════════
-// 공시지가 조회
-// [v18-02] PRICE_YEARS = 현재연도부터 자동 생성
-// ══════════════════════════════════════════
-async function fetchLandPrice() {
-  if (!validatePNU(ST.pnu)) return;
-  setLoadStep('공시지가 조회 중...');
-  setSt('st-price', 'warn', '💰 조회중');
-
-  const cacheKey = `price_${ST.pnu}`;
-  const cached = cacheGet(cacheKey);
-  if (cached) {
-    ST.price=cached.price; if (!ST.area&&cached.area) ST.area=cached.area; if (!ST.jimok&&cached.jimok) ST.jimok=cached.jimok;
-    renderLand();
-    setSt('st-price', 'ok', '💰 캐시');
-    document.getElementById('land-cache').style.display='';
-    return;
-  }
-
-  // 1차: V-World
-  try {
-    const url = `https://api.vworld.kr/req/data?service=data&request=GetFeature&key=${CFG.vworld}&data=LP_PA_IVLC_PUBPRICE&attrfilter=pnu:=:${ST.pnu}&geometry=false&size=1&_type=json`;
-    const d = await fetchJSON(url, 6000);
-    if (d?.response?.status==='OK') {
-      const p = d.response.result?.featureCollection?.features?.[0]?.properties||{};
-      if (p.pblntf_pclnd) {
-        ST.price=parseInt(String(p.pblntf_pclnd).replace(/,/g,''))||0;
-        if (!ST.area) ST.area=parseFloat(p.lndpclAr||p.lnd_ar)||0;
-        if (!ST.jimok) ST.jimok=p.lndCgrCdNm||p.lnd_cgr_cd_nm||'';
-        cacheSet(cacheKey, {price:ST.price,area:ST.area,jimok:ST.jimok});
-        renderLand(); setSt('st-price','ok','💰 완료'); return;
-      }
-    }
-  } catch(e) {}
-
-  // 2차: 공공API — [v18-02] PRICE_YEARS 동적 배열 사용
-  const encKey = encodeURIComponent(CFG.public);
-  for (const yr of PRICE_YEARS) {
-    try {
-      const url = `https://apis.data.go.kr/1613000/LandPriceService/getLandPriceInfo?serviceKey=${encKey}&pnu=${ST.pnu}&stdrYear=${yr}&_type=json&numOfRows=1`;
-      const d = await fetchJSON(url, 5000);
-      const item = d?.response?.body?.items?.item;
-      const rec = Array.isArray(item)?item[0]:item;
-      if (rec?.pblntfPclnd) {
-        ST.price=parseInt(String(rec.pblntfPclnd).replace(/,/g,''))||0;
-        if (!ST.area) ST.area=parseFloat(rec.lndpclArea)||0;
-        if (!ST.jimok) ST.jimok=rec.lndcgrCodeNm||'';
-        cacheSet(cacheKey, {price:ST.price,area:ST.area,jimok:ST.jimok});
-        renderLand(); setSt('st-price','ok',`💰 ${yr}년`); return;
-      }
-    } catch(e) {}
-  }
-  setSt('st-price', 'err', '💰 조회 실패');
-}
-
-// ══════════════════════════════════════════
-// 토지 현황 렌더
-// [v18-02] THIS_YEAR 사용
-// ══════════════════════════════════════════
-function renderLand() {
-  const total = ST.area * ST.price;
-  setEl('v-area',  ST.area  ? ST.area.toLocaleString()+'㎡' : '—');
-  setEl('v-price', ST.price ? ST.price.toLocaleString()+'원/㎡' : '—');
-  setEl('v-jimok', ST.jimok || '—');
-  setEl('v-total', total ? Math.round(total/1e8*10)/10+'억원' : '—');
+  // 토지 현황
+  const total=ST.area*ST.price;
+  setEl('v-area', ST.area  ? ST.area.toLocaleString()+'㎡':'—');
+  setEl('v-price',ST.price ? ST.price.toLocaleString()+'원/㎡':'—');
+  setEl('v-zone', zone||'—');
+  setEl('v-total',total ? Math.round(total/1e8*10)/10+'억원':'—');
   show('sec-land');
-  setSt('st-land', 'ok', '🌐 완료');
+
+  // 건물 현황
+  if(use||date||gfa){
+    setEl('v-use',     use||'—');
+    setEl('v-totarea', gfa ? gfa.toLocaleString()+'㎡':'—');
+    if(!date||date.length<4){setEl('v-date','—');setEl('v-age','—');}
+    show('sec-bld');
+  }
+
+  // 개발 규모 분석
+  renderDevAnalysis();
+  setSt('st-manual','ok','✏️ 입력 완료');
+  toast('✅ 개발 규모 분석 완료');
 }
 
-// ══════════════════════════════════════════
-// 건축물대장 조회
-// [v18-02] THIS_YEAR로 노후도 계산
-// ══════════════════════════════════════════
-async function fetchBuilding() {
-  if (!ST.sigungu || !validatePNU(ST.pnu)) return;
-  setLoadStep('건축물대장 조회 중...');
-  setSt('st-bld', 'warn', '🏢 조회중');
+// ── 개발 규모 분석 ──
+function renderDevAnalysis(){
+  const area=ST.area; if(!area||area<=0){return;}
+  const zoneName=ST.zoneName||'제2종일반주거';
+  const zone=ZONE_FAR[zoneName]||ZONE_FAR['제2종일반주거'];
+  const {far,bcr}=zone;
+  const maxGFA=area*far/100, maxFP=area*bcr/100;
+  const offGFA=maxGFA*.85,offU=Math.floor(offGFA/(45/.60)),offP=calcParking('오피스텔',45,offGFA,offU);
+  const dosGFA=maxGFA*.88,dosU=Math.floor(dosGFA/(27/.55)),dosP=calcParking('도시형',27,dosGFA,dosU);
+  const dasGFA=maxGFA*.80,dasU=Math.floor(dasGFA/(59/.70)),dasP=calcParking('다세대',59,dasGFA,dasU);
+  const cmxGFA=maxGFA*.82,cmxP=calcParking('근린',0,cmxGFA,0);
 
-  const cacheKey = `bld_${ST.pnu}`;
-  const cached = cacheGet(cacheKey);
-  if (cached) {
-    applyBuildingData(cached);
-    setSt('st-bld', 'ok', '🏢 캐시');
-    document.getElementById('bld-cache').style.display='';
-    return;
-  }
+  let grade='D',gl='소규모 (검토 제한적)';
+  if(area>=3000&&far>=400){grade='A';gl='우량 (대규모 복합개발 가능)';}
+  else if(area>=1500&&far>=250){grade='B';gl='양호 (중규모 개발 가능)';}
+  else if(area>=500&&far>=150){grade='C';gl='보통 (소규모 개발 가능)';}
 
-  try {
-    const encKey = encodeURIComponent(CFG.public);
-    const url = `https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo?serviceKey=${encKey}&sigunguCd=${ST.sigungu}&bjdongCd=${ST.bjdong}&platGbCd=0&bun=${ST.bun}&ji=${ST.ji}&_type=json&numOfRows=1`;
-    const d = await fetchJSON(url, 6000);
-    const body = d?.response?.body;
-    if (!body || body.totalCount===0 || body.totalCount==='0') {
-      setSt('st-bld', 'err', '🏢 건물 없음'); return;
-    }
-    const raw = body.items?.item;
-    const item = Array.isArray(raw)?raw[0]:raw;
-    if (!item) { setSt('st-bld', 'err', '🏢 데이터 없음'); return; }
-    cacheSet(cacheKey, item);
-    applyBuildingData(item);
-    setSt('st-bld', 'ok', '🏢 완료');
-  } catch(e) {
-    setSt('st-bld', 'err', '🏢 조회 실패');
-  }
-}
+  const lh=LH_TYPES.map(t=>{const u=Math.floor(maxGFA*.85/(t.maxM2/t.eff));return{...t,u,p:t.gp(u,t.maxM2)};});
 
-function applyBuildingData(item) {
-  ST.bldNm=item.bldNm||'(미등록)'; ST.use=item.mainPurpsCdNm||'';
-  const gF=item.grndFlrCnt||'—', uF=item.ugrndFlrCnt||'';
-  ST.floor=gF+'층'+(uF?'/지하'+uF+'층':'');
-  ST.totArea=parseFloat(item.totArea)||0;
-  ST.area=parseFloat(item.platArea)||ST.area;
-  setEl('v-bldnm',ST.bldNm); setEl('v-use',ST.use||'—');
-  setEl('v-struct',item.strctCdNm||'—'); setEl('v-floor',ST.floor);
-  setEl('v-totarea',ST.totArea?ST.totArea.toLocaleString()+'㎡':'—');
-  const useDay = item.useAprDay||'';
-  if (useDay.length===8) {
-    setEl('v-date',`${useDay.substring(0,4)}.${useDay.substring(4,6)}.${useDay.substring(6,8)}`);
-    // [v18-02] THIS_YEAR 사용
-    ST.age = THIS_YEAR - parseInt(useDay.substring(0,4));
-    const ab = document.getElementById('aging-box'); ab.style.display='flex';
-    if (ST.age>=30)      { ab.className='aging warn'; ab.innerHTML=`🚨 노후도 충족 — 준공 ${ST.age}년 (역세권 활성화 요건 해당)`; }
-    else if (ST.age>=20) { ab.className='aging mid';  ab.innerHTML=`⚠️ 노후 진행 중 — 준공 ${ST.age}년 (${30-ST.age}년 후 충족)`; }
-    else                 { ab.className='aging ok';   ab.innerHTML=`✅ 신축급 — 준공 ${ST.age}년`; }
-  }
-  show('sec-bld');
-  if (ST.area) renderLand();
-}
+  const scenarios=[
+    {label:'오피스텔',val:`${offU}세대`,color:'var(--green)',p:offP},
+    {label:'도시형(원룸)',val:`${dosU}세대`,color:'var(--gold)',p:dosP},
+    {label:'다세대',val:`${dasU}세대`,color:'var(--acc2)',p:dasP},
+    {label:'복합근생',val:`${Math.round(cmxGFA).toLocaleString()}㎡`,color:'var(--text)',p:cmxP},
+  ];
 
-// ══════════════════════════════════════════
-// 용도지역 조회
-// [v18-07] 대표값 = FAR 최고값 기준
-// ══════════════════════════════════════════
-async function fetchZoneInfo() {
-  if (!validatePNU(ST.pnu)) return;
-  setLoadStep('용도지역 조회 중...');
-  setSt('st-zone', 'warn', '🗺 조회중');
-
-  const cacheKey = `zone_${ST.pnu}`;
-  const cached = cacheGet(cacheKey);
-  if (cached) {
-    applyZoneData(cached);
-    setSt('st-zone', 'ok', '🗺 캐시');
-    document.getElementById('zone-cache').style.display='';
-    return;
-  }
-
-  try {
-    const encKey = encodeURIComponent(CFG.public);
-    const url = `https://apis.data.go.kr/1613000/LandUseService/getLandUseInfo?serviceKey=${encKey}&pnu=${ST.pnu}&_type=json&numOfRows=10`;
-    const d = await fetchJSON(url, 6000);
-    const items = d?.response?.body?.items?.item;
-    if (!items) { setSt('st-zone', 'err', '🗺 데이터 없음'); return; }
-    const arr = Array.isArray(items)?items:[items];
-    cacheSet(cacheKey, arr);
-    applyZoneData(arr);
-    setSt('st-zone', 'ok', '🗺 완료');
-  } catch(e) {
-    setSt('st-zone', 'err', '🗺 조회 실패');
-  }
-}
-
-function applyZoneData(arr) {
-  ST.zoneList = arr;
-  // [v18-07] 용도지역 필터 — 주거·상업·공업·녹지 포함
-  const ZN_KEYWORDS = ['주거','상업','공업','녹지','준주거','준공업'];
-  const zoneItems = arr.filter(it =>
-    it.prposAreaDstrcNm && ZN_KEYWORDS.some(kw => it.prposAreaDstrcNm.includes(kw))
-  );
-
-  // [v18-07] 대표 용도지역 = 등록된 ZONE_FAR 기준 FAR 최고값
-  let bestZone = '';
-  let bestFar = -1;
-  for (const it of zoneItems) {
-    const nm = it.prposAreaDstrcNm||'';
-    // 정확 매칭 우선
-    if (ZONE_FAR[nm] && ZONE_FAR[nm].far > bestFar) {
-      bestFar = ZONE_FAR[nm].far;
-      bestZone = nm;
-    }
-  }
-  // 정확 매칭 없으면 첫 번째 항목
-  if (!bestZone && zoneItems.length > 0) bestZone = zoneItems[0].prposAreaDstrcNm||'';
-  ST.zoneName = bestZone;
-
-  // 복수 용도지역 여부 감지
-  const isMulti = zoneItems.length > 1;
-  const multiBadge = isMulti
-    ? `<span style="margin-left:6px;font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);color:#fbbf24;">복수 용도지역 ${zoneItems.length}개</span>`
-    : '';
-
-  const rows = arr.slice(0,8).map(it => {
-    const isRep = it.prposAreaDstrcNm === ST.zoneName;
-    return `<div class="dev-row">
-      <span class="dev-key" style="font-size:10px">${it.prposAreaNm||'—'}</span>
-      <span class="dev-val" style="font-size:10px;color:${isRep?'var(--green)':'var(--acc2)'}">${it.prposAreaDstrcNm||'—'}${isRep?' ★':''}</span>
-    </div>`;
-  }).join('');
-
-  setEl('zone-body', rows + `
-    <div style="font-size:9px;color:var(--t3);margin-top:6px;">
-      ★ 대표 용도지역 (FAR 최고값 기준)${multiBadge}<br>
-      ※ 토지이용규제정보서비스 실조회 기준
-    </div>`);
-  show('sec-zone');
-}
-
-// ══════════════════════════════════════════
-// 개발규모 분석
-// [v18-07] 실조회 용도지역 우선
-// [v18-08] 기준일·출처 표기
-// ══════════════════════════════════════════
-function renderDevAnalysis() {
-  const area = ST.area; if (!area||area<=0) return;
-
-  let zoneName = ST.zoneName||'';
-  const isApiZone = !!(zoneName && ZONE_FAR[zoneName]);
-
-  if (!isApiZone) {
-    // 폴백 추정 (API 실패 시)
-    const use = ST.use||'';
-    if (use.includes('상업')||use.includes('판매')||use.includes('업무')) zoneName='근린상업';
-    else if (use.includes('준주거')||use.includes('주상복합')) zoneName='준주거';
-    else if (use.includes('공장')||use.includes('창고')) zoneName='준공업';
-    else if (area>=5000) zoneName='제3종일반주거';
-    else zoneName='제2종일반주거';
-  }
-
-  const zone = ZONE_FAR[zoneName]||ZONE_FAR['제2종일반주거'];
-  const {far, bcr} = zone;
-
-  const maxGFA = area*far/100, maxFP = area*bcr/100;
-  const offGFA=maxGFA*0.85, offUnits=Math.floor(offGFA/(45/0.60)), offPark=calcParking('오피스텔',45,offGFA,offUnits);
-  const dosiGFA=maxGFA*0.88, dosiUnits=Math.floor(dosiGFA/(27/0.55)), dosiPark=calcParking('도시형',27,dosiGFA,dosiUnits);
-  const dasGFA=maxGFA*0.80, dasUnits=Math.floor(dasGFA/(59/0.70)), dasPark=calcParking('다세대',59,dasGFA,dasUnits);
-  const cmxGFA=maxGFA*0.82, cmxPark=calcParking('근린',0,cmxGFA,0);
-
-  let grade='D', gradeLabel='소규모 (검토 제한적)';
-  if (area>=3000&&far>=400)      { grade='A'; gradeLabel='우량 (대규모 복합개발 가능)'; }
-  else if (area>=1500&&far>=250) { grade='B'; gradeLabel='양호 (중규모 개발 가능)'; }
-  else if (area>=500&&far>=150)  { grade='C'; gradeLabel='보통 (소규모 개발 가능)'; }
-
-  const lhRows = LH_TYPES.map(t => {
-    const u = Math.floor(maxGFA*0.85/(t.maxM2/t.effRatio));
-    return {...t, units:u, park:t.getPark(u, t.maxM2)};
-  });
-
-  const zoneNote = isApiZone
-    ? `<span style="color:#34d399;font-size:8px;">✅ 토지이용규제 실조회</span>`
-    : `<span style="color:#f59e0b;font-size:8px;">⚠️ 추정값 — 🗺 토지이음 확인 권장</span>`;
-
-  // [v18-08] 기준일·출처 표기
-  const refNote = `
-    <div class="ref-note">
-      <b>기준일:</b> ${THIS_YEAR}.01.01 적용 기준 &nbsp;|&nbsp;
-      <b>적용 법령:</b> 국토의 계획 및 이용에 관한 법률 시행령<br>
-      <b>주차기준:</b> 주차장법 시행령 / 서울시 주차장 설치 및 관리 조례<br>
-      <b>LH 기준:</b> LH 신축매입약정 업무처리지침 (2025.07 기준)<br>
-      ⚠️ 법령 개정 시 수치가 달라질 수 있으므로 인허가 전 반드시 관할 구청 확인 필요
-    </div>`;
-
-  const html = `
-    <div class="dev-badge ${grade}">${grade}등급 — ${gradeLabel}</div>
-    <div class="dev-row"><span class="dev-key">용도지역 ${zoneNote}</span><span class="dev-val purple">${zoneName}</span></div>
+  setEl('dev-body',`
+    <div class="dev-badge ${grade}">${grade}등급 — ${gl}</div>
+    <div class="dev-row"><span class="dev-key">용도지역</span><span class="dev-val purple">${zoneName}</span></div>
     <div class="dev-row"><span class="dev-key">용적률 / 건폐율</span><span class="dev-val blue">${far}% / ${bcr}%</span></div>
     <div class="dev-row"><span class="dev-key">최대 연면적</span><span class="dev-val cyan">${Math.round(maxGFA).toLocaleString()}㎡</span></div>
     <div class="dev-row"><span class="dev-key">최대 건축면적</span><span class="dev-val">${Math.round(maxFP).toLocaleString()}㎡</span></div>
     <div style="margin:11px 0 6px;font-size:9px;font-weight:700;color:var(--t2);letter-spacing:1.5px;">개발 시나리오 (법정주차 최소/권장)</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-bottom:10px;">
-      ${[
-        {label:'오피스텔',val:`${offUnits}세대`,color:'var(--green)',p:offPark},
-        {label:'도시형(원룸)',val:`${dosiUnits}세대`,color:'var(--gold)',p:dosiPark},
-        {label:'다세대',val:`${dasUnits}세대`,color:'var(--acc2)',p:dasPark},
-        {label:'복합근생',val:`${Math.round(cmxGFA).toLocaleString()}㎡`,color:'var(--text)',p:cmxPark},
-      ].map(s=>`<div class="sc"><div class="sc-l">${s.label}</div><div class="sc-v" style="color:${s.color};font-size:11px">${s.val}</div><div style="font-size:8.5px;color:var(--t2);margin-top:3px;">최소 ${s.p.min}대</div><div style="font-size:8.5px;color:var(--acc2);">권장 ${s.p.rec}대</div><div style="font-size:7.5px;color:var(--t3);margin-top:1px;">${s.p.law}</div></div>`).join('')}
+      ${scenarios.map(s=>`<div class="sc"><div class="sc-l">${s.label}</div><div class="sc-v" style="color:${s.color};font-size:11px">${s.val}</div><div style="font-size:8px;color:var(--t2);margin-top:3px">최소 ${s.p.min}대</div><div style="font-size:8px;color:var(--acc2)">권장 ${s.p.rec}대</div><div style="font-size:7px;color:var(--t3)">${s.p.law}</div></div>`).join('')}
     </div>
     <div style="margin:0 0 6px;font-size:9px;font-weight:700;color:#c4b5fd;letter-spacing:1.5px;">LH 신축매입약정 5개 유형</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;">
-      ${lhRows.map(t=>`<div class="sc" style="border-color:${t.color}44"><div class="sc-l" style="color:${t.color};font-size:8px">${t.label}</div><div class="sc-v" style="color:${t.color};font-size:11px">${t.units}세대</div><div style="font-size:8.5px;color:var(--t2);margin-top:2px;">주차${t.park.cnt}대 (${t.park.rate}대/세대)</div><div style="font-size:7.5px;color:var(--t3)">${t.minM2}~${t.maxM2}㎡ | ${t.park.law}</div></div>`).join('')}
+      ${lh.map(t=>`<div class="sc" style="border-color:${t.color}44"><div class="sc-l" style="color:${t.color};font-size:8px">${t.label}</div><div class="sc-v" style="color:${t.color};font-size:11px">${t.u}세대</div><div style="font-size:8px;color:var(--t2);margin-top:2px">${t.p.r}대/세대</div><div style="font-size:7px;color:var(--t3)">${t.minM2}~${t.maxM2}㎡</div></div>`).join('')}
     </div>
     <div class="law-note">
-      <b>도시형</b>: 30㎡이하 0.3대 / 30~60㎡ 0.6대 / 60㎡초과 1.0대 &nbsp;|&nbsp; <b>다세대</b>: 1.0대<br>
-      <b>오피스텔</b>: 30㎡이하 200㎡/대 · 30~85㎡ 150㎡/대 · 85㎡초과 120㎡/대<br>
-      <b>LH</b>: 청년 0.3~0.6대 · 신혼 0.7대 · 일반·든든·공공전세 1.0대
+      <b>도시형</b>: ≤30㎡ 0.3대 / 30~60㎡ 0.6대 / &gt;60㎡ 1.0대 &nbsp;|&nbsp; <b>다세대</b>: 1.0대<br>
+      <b>오피스텔</b>: ≤30㎡ 200㎡/대 · ≤85㎡ 150㎡/대 · &gt;85㎡ 120㎡/대
     </div>
-    ${refNote}`;
-
-  setEl('dev-body', html);
+    <div class="ref-note">
+      <b>기준일:</b> ${THIS_YEAR}.01.01 &nbsp;|&nbsp; <b>근거:</b> 국토계획법 시행령 / 주차장법 시행령<br>
+      <b>LH:</b> 신축매입약정 업무처리지침 (2025.07) &nbsp;|&nbsp; ⚠️ 인허가 전 관할 구청 확인 필수
+    </div>`);
   show('sec-dev');
 }
 
-// ══════════════════════════════════════════
-// 퀵액션
-// ══════════════════════════════════════════
-function enableLocButtons() {
-  document.querySelectorAll('.qa-btn.need-loc').forEach(btn => {
-    btn.classList.remove('need-loc');
-  });
-}
+// ── 퀵액션 ──
+function enableLocButtons(){document.querySelectorAll('.qa-btn.need-loc').forEach(b=>b.classList.remove('need-loc'));}
+function openLUR(){window.open(ST.pnu?`https://www.eum.go.kr/web/mp/mpMapDet.jsp?pnu=${ST.pnu}`:'https://www.eum.go.kr','_blank');toast('🗺 토지이음 — 토지이용계획 조회');}
+function openBLD(){window.open('https://www.gov.kr/main?a=AA020InfoCappViewApp&HighCtgCD=&CappBizCD=15000000098','_blank');toast('🏢 정부24 건축물대장 조회');}
+function openPRC(){window.open('https://www.gov.kr/main?a=AA020InfoCappViewApp&HighCtgCD=&CappBizCD=15000000076','_blank');toast('💰 정부24 개별공시지가 확인');}
+function openNaver(){if(!ST.lat){toast('❌ 부지 먼저 클릭');return;}window.open(`https://hogangnono.com/map/${ST.lat}/${ST.lng}/17`,'_blank');toast('🏠 호갱노노 주변 시세');}
+function openCAD(){window.open(ST.pnu?`https://www.eum.go.kr/web/mp/mpMapDet.jsp?pnu=${ST.pnu}&searchType=pnu`:'https://www.eum.go.kr/web/mp/mpMapDet.jsp','_blank');toast('📐 토지이음 지적도');}
+function openTrade(){if(!ST.sigungu){toast('❌ 부지 먼저 클릭');return;}fetchTradeData();window.open('https://rt.molit.go.kr','_blank');}
+function openRoadview(){if(!ST.lat){toast('❌ 부지 먼저 클릭');return;}window.open(`https://map.kakao.com/link/roadview/${ST.lat},${ST.lng}`,'_blank');}
 
-function openLUR() {
-  const url = ST.pnu
-    ? `https://www.eum.go.kr/web/mp/mpMapDet.jsp?pnu=${ST.pnu}`
-    : `https://www.eum.go.kr`;
-  window.open(url, '_blank');
-  toast('🗺 토지이음 — 토지이용계획 조회');
-}
-function openBLD() {
-  window.open('https://www.gov.kr/main?a=AA020InfoCappViewApp&HighCtgCD=&CappBizCD=15000000098', '_blank');
-  toast('🏢 정부24 건축물대장 — 주소 입력 후 조회');
-}
-function openPRC() {
-  window.open('https://www.gov.kr/main?a=AA020InfoCappViewApp&HighCtgCD=&CappBizCD=15000000076', '_blank');
-  toast('💰 정부24 개별공시지가 확인');
-}
-function openNaver() {
-  if (!ST.lat||ST.lat===0) { toast('❌ 부지를 먼저 클릭하세요'); return; }
-  window.open(`https://hogangnono.com/map/${ST.lat}/${ST.lng}/17`, '_blank');
-  toast('🏠 호갱노노 — 주변 시세 확인');
-}
-// [v17-07 유지] openCAD 분리
-function openCAD() {
-  const url = ST.pnu
-    ? `https://www.eum.go.kr/web/mp/mpMapDet.jsp?pnu=${ST.pnu}&searchType=pnu`
-    : `https://www.eum.go.kr/web/mp/mpMapDet.jsp`;
-  window.open(url, '_blank');
-  toast('📐 토지이음 지적도 — 필지 경계 확인');
-}
-function openTrade() {
-  if (!ST.lat||ST.lat===0) { toast('❌ 부지를 먼저 클릭하세요'); return; }
-  fetchTradeData();
-  window.open('https://rt.molit.go.kr', '_blank');
-  toast('📊 실거래가 패널 조회 + 국토부 공개시스템');
-}
-function openRoadview() {
-  if (!ST.lat||ST.lat===0) { toast('❌ 부지를 먼저 클릭하세요'); return; }
-  window.open(`https://map.kakao.com/link/roadview/${ST.lat},${ST.lng}`, '_blank');
-  toast('🚗 카카오 로드뷰');
-}
-
-// ══════════════════════════════════════════
-// 실거래가 조회
-// ══════════════════════════════════════════
-async function fetchTradeData() {
+// ── 실거래가 조회 (✅ 작동 확인) ──
+async function fetchTradeData(){
   show('sec-trade');
   setEl('trade-body','<div style="text-align:center;padding:12px;font-size:11px;color:var(--t3);"><div class="spin"></div><div style="margin-top:6px">실거래가 조회 중...</div></div>');
-  if (!ST.sigungu) { setEl('trade-body','<div style="font-size:11px;color:var(--t3);padding:8px 0;">시군구 코드 없음</div>'); return; }
+  if(!ST.sigungu){setEl('trade-body','<div style="font-size:11px;color:var(--t3);padding:8px 0;">시군구 코드 없음 — 지도를 다시 클릭하세요</div>');return;}
 
-  const now = new Date();
-  const ym = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}`;
-  const prevYm = now.getMonth()===0
-    ? `${now.getFullYear()-1}12`
-    : `${now.getFullYear()}${String(now.getMonth()).padStart(2,'0')}`;
-  const encKey = encodeURIComponent(CFG.public);
-  const results = [];
+  const now=new Date();
+  const ym=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}`;
+  const prev=now.getMonth()===0?`${now.getFullYear()-1}12`:`${now.getFullYear()}${String(now.getMonth()).padStart(2,'0')}`;
+  const enc=encodeURIComponent(CFG.public);
+  const results=[];
 
-  const apis = [
+  const apis=[
     {label:'아파트',color:'var(--acc2)',
-     url:`https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev?serviceKey=${encKey}&LAWD_CD=${ST.sigungu}&DEAL_YMD=${ym}&_type=json&numOfRows=5`,
-     parse:it=>({addr:`${it.법정동||''} ${it.지번||''}`,price:`${it.거래금액||'—'}`,area:`${it.전용면적||''}㎡`,date:`${it.년||''}.${String(it.월||'').padStart(2,'0')}`})},
+     url:`https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev?serviceKey=${enc}&LAWD_CD=${ST.sigungu}&DEAL_YMD=${ym}&_type=json&numOfRows=5`,
+     parse:it=>({addr:`${it.법정동||''} ${it.지번||''}`,price:it.거래금액||'—',area:`${it.전용면적||''}㎡`,date:`${it.년||''}.${String(it.월||'').padStart(2,'0')}`})},
     {label:'연립/다세대',color:'var(--cyan)',
-     url:`https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade?serviceKey=${encKey}&LAWD_CD=${ST.sigungu}&DEAL_YMD=${ym}&_type=json&numOfRows=5`,
-     parse:it=>({addr:`${it.법정동||''} ${it.지번||''}`,price:`${it.거래금액||'—'}`,area:`${it.전용면적||''}㎡`,date:`${it.년||''}.${String(it.월||'').padStart(2,'0')}`})},
+     url:`https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade?serviceKey=${enc}&LAWD_CD=${ST.sigungu}&DEAL_YMD=${ym}&_type=json&numOfRows=5`,
+     parse:it=>({addr:`${it.법정동||''} ${it.지번||''}`,price:it.거래금액||'—',area:`${it.전용면적||''}㎡`,date:`${it.년||''}.${String(it.월||'').padStart(2,'0')}`})},
     {label:'토지',color:'var(--gold)',
-     url:`https://apis.data.go.kr/1613000/RTMSDataSvcLandTrade/getRTMSDataSvcLandTrade?serviceKey=${encKey}&LAWD_CD=${ST.sigungu}&DEAL_YMD=${ym}&_type=json&numOfRows=5`,
-     parse:it=>({addr:`${it.법정동||''} ${it.지번||''}`,price:`${it.거래금액||'—'}`,area:it.지목||'',date:`${it.년||''}.${String(it.월||'').padStart(2,'0')}`})},
+     url:`https://apis.data.go.kr/1613000/RTMSDataSvcLandTrade/getRTMSDataSvcLandTrade?serviceKey=${enc}&LAWD_CD=${ST.sigungu}&DEAL_YMD=${ym}&_type=json&numOfRows=5`,
+     parse:it=>({addr:`${it.법정동||''} ${it.지번||''}`,price:it.거래금액||'—',area:it.지목||'',date:`${it.년||''}.${String(it.월||'').padStart(2,'0')}`})},
   ];
 
-  for (const api of apis) {
-    try {
-      const d = await fetchJSON(api.url, 6000);
-      const raw = d?.response?.body?.items?.item;
-      if (raw) { const arr=Array.isArray(raw)?raw:[raw]; arr.slice(0,3).forEach(it=>{const p=api.parse(it); results.push({...p,label:api.label,color:api.color});}); }
-    } catch(e) {}
+  for(const api of apis){
+    try{
+      const ctrl=new AbortController();setTimeout(()=>ctrl.abort(),9000);
+      const res=await fetch(api.url,{signal:ctrl.signal});
+      if(!res.ok)continue;
+      const d=await res.json();
+      const raw=d?.response?.body?.items?.item;
+      if(raw){const arr=Array.isArray(raw)?raw:[raw];arr.slice(0,3).forEach(it=>{const p=api.parse(it);results.push({...p,label:api.label,color:api.color});});}
+    }catch(e){}
   }
 
-  if (!results.length) {
-    try {
-      const url=`https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev?serviceKey=${encKey}&LAWD_CD=${ST.sigungu}&DEAL_YMD=${prevYm}&_type=json&numOfRows=5`;
-      const d = await fetchJSON(url, 6000);
-      const raw = d?.response?.body?.items?.item;
-      if (raw) { const arr=Array.isArray(raw)?raw:[raw]; arr.slice(0,5).forEach(it=>results.push({addr:`${it.법정동||''} ${it.지번||''}`,price:`${it.거래금액||'—'}`,area:`${it.전용면적||''}㎡`,date:`${it.년||''}.${String(it.월||'').padStart(2,'0')}`,label:'아파트',color:'var(--acc2)'})); }
-    } catch(e) {}
-  }
-
-  if (!results.length) {
-    setEl('trade-body',`<div style="font-size:11px;color:var(--t3);padding:8px 0;">최근 거래 없음 (${ST.sigungu})</div>`);
-    return;
-  }
-  const html = results.map(r=>`<div class="dev-row"><span class="dev-key" style="font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px"><span style="color:${r.color};font-weight:700">[${r.label}]</span> ${r.addr} <span style="color:var(--t3)">${r.area}</span></span><span class="dev-val" style="font-size:10px;color:${r.color};flex-shrink:0">${r.price}만 ${r.date}</span></div>`).join('');
-  setEl('trade-body', html+`<div style="font-size:9px;color:var(--t3);margin-top:6px;">※ 시군구 단위 (국토부 API)</div>`);
-}
-
-// ══════════════════════════════════════════
-// 법규·경매 패널
-// ══════════════════════════════════════════
-function toggleLawPanel() {
-  const list = document.getElementById('law-btns-list');
-  const btn = list.parentElement.querySelector('.law-toggle');
-  if (list.classList.contains('open')) { list.classList.remove('open'); btn.textContent='⚖️ 법규·경매 ▲'; }
-  else { list.classList.add('open'); btn.textContent='⚖️ 법규·경매 ▼'; }
-}
-
-// authCd 매핑 (시도 코드 기준)
-// [v18] PNU 앞 2자리로 시도 판별 → 해당 시도 법령집으로 연결
-const AUTH_CD_MAP = {
-  '11':'11650', // 서울
-  '26':'26000', // 부산
-  '27':'27000', // 대구
-  '28':'28000', // 인천
-  '29':'29000', // 광주
-  '30':'30000', // 대전
-  '31':'31000', // 울산
-  '36':'36000', // 세종
-  '41':'41000', // 경기
-  '42':'42000', // 강원
-  '43':'43000', // 충북
-  '44':'44000', // 충남
-  '45':'45000', // 전북
-  '46':'46000', // 전남
-  '47':'47000', // 경북
-  '48':'48000', // 경남
-  '50':'50000', // 제주
-};
-
-function openLawBook() {
-  const useMap = {
-    '제1종전용주거':'UQA111','제2종전용주거':'UQA112',
-    '제1종일반주거':'UQA121','제2종일반주거':'UQA122','제3종일반주거':'UQA123',
-    '준주거':'UQA130','중심상업':'UQA141','일반상업':'UQA142',
-    '근린상업':'UQA143','유통상업':'UQA144','전용공업':'UQA151',
-    '일반공업':'UQA152','준공업':'UQA161',
-    '보전녹지':'UQA171','생산녹지':'UQA172','자연녹지':'UQA173',
-  };
-
-  // [v18] 용도지역 ucode
-  let ucode = 'UQA122'; // default: 제2종일반주거
-  if (ST.zoneName && useMap[ST.zoneName]) {
-    ucode = useMap[ST.zoneName];
-  } else {
-    const devBody = document.getElementById('dev-body');
-    if (devBody) {
-      const txt = devBody.textContent||'';
-      for (const [name, code] of Object.entries(useMap)) {
-        if (txt.includes(name)) { ucode=code; break; }
+  if(!results.length){
+    try{
+      const ctrl=new AbortController();setTimeout(()=>ctrl.abort(),9000);
+      const url=`https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev?serviceKey=${enc}&LAWD_CD=${ST.sigungu}&DEAL_YMD=${prev}&_type=json&numOfRows=5`;
+      const res=await fetch(url,{signal:ctrl.signal});
+      if(res.ok){
+        const d=await res.json();
+        const raw=d?.response?.body?.items?.item;
+        if(raw){const arr=Array.isArray(raw)?raw:[raw];arr.slice(0,5).forEach(it=>results.push({addr:`${it.법정동||''} ${it.지번||''}`,price:it.거래금액||'—',area:`${it.전용면적||''}㎡`,date:`${it.년||''}.${String(it.월||'').padStart(2,'0')}`,label:'아파트(전달)',color:'var(--acc2)'}));}
       }
-    }
+    }catch(e){}
   }
 
-  // [v18] 시도코드 기반 authCd 자동 연결 (③ 부분채택)
-  let authCd = '11650'; // default: 서울
-  if (ST.pnu && ST.pnu.length>=2) {
-    const sidoCd = ST.pnu.substring(0,2);
-    authCd = AUTH_CD_MAP[sidoCd] || '11650';
-  }
-
-  window.open(`https://www.eum.go.kr/web/ar/lw/lwLawDet.jsp?ucode=${ucode}&authCd=${authCd}`, '_blank');
-  toast('📋 규제법령집 — 해당 용도지역 행위제한');
+  if(!results.length){setEl('trade-body',`<div style="font-size:11px;color:var(--t3);padding:8px 0;">최근 거래 없음 (${ST.sigungu})<br><span style="font-size:9px">→ 국토부 실거래가 시스템에서 직접 확인</span></div>`);return;}
+  setEl('trade-body',results.map(r=>`<div class="dev-row"><span class="dev-key" style="font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px"><span style="color:${r.color};font-weight:700">[${r.label}]</span> ${r.addr} <span style="color:var(--t3)">${r.area}</span></span><span class="dev-val" style="font-size:10px;color:${r.color};flex-shrink:0">${r.price}만 ${r.date}</span></div>`).join('')+`<div style="font-size:9px;color:var(--t3);margin-top:6px">※ 시군구 단위</div>`);
 }
 
-// ══════════════════════════════════════════
-// 역세권 활성화
-// [v18-06] 환승역 중복 제거 로직
-// ══════════════════════════════════════════
-function clearYkOverlays() {
-  ykCircles.forEach(c=>c.setMap(null)); ykCircles=[];
-  ykMarkers.forEach(m=>m.setMap(null)); ykMarkers=[];
+// ── 법규·경매 ──
+function toggleLawPanel(){
+  const l=document.getElementById('law-btns-list'),b=l.parentElement.querySelector('.law-toggle');
+  l.classList.contains('open')?(l.classList.remove('open'),b.textContent='⚖️ 법규·경매 ▲'):(l.classList.add('open'),b.textContent='⚖️ 법규·경매 ▼');
+}
+function openLawBook(){
+  const uMap={'제1종전용주거':'UQA111','제2종전용주거':'UQA112','제1종일반주거':'UQA121','제2종일반주거':'UQA122','제3종일반주거':'UQA123','준주거':'UQA130','중심상업':'UQA141','일반상업':'UQA142','근린상업':'UQA143','유통상업':'UQA144','전용공업':'UQA151','일반공업':'UQA152','준공업':'UQA161','보전녹지':'UQA171','생산녹지':'UQA172','자연녹지':'UQA173'};
+  const ucode=uMap[ST.zoneName]||'UQA122';
+  const authCd=AUTH_MAP[ST.pnu?.substring(0,2)]||'11650';
+  window.open(`https://www.eum.go.kr/web/ar/lw/lwLawDet.jsp?ucode=${ucode}&authCd=${authCd}`,'_blank');
+  toast('📋 규제법령집 열기');
 }
 
-async function checkYeokse() {
-  if (!ST.lat||ST.lat===0) { toast('❌ 부지를 먼저 클릭하세요'); return; }
+// ── 역세권 활성화 ──
+function clearYkOverlays(){ykCircles.forEach(c=>c.setMap(null));ykCircles=[];ykMarkers.forEach(m=>m.setMap(null));ykMarkers=[];}
+
+async function checkYeokse(){
+  if(!ST.lat){toast('❌ 부지 먼저 클릭');return;}
   show('yk-result');
   setEl('yk-body','<div style="text-align:center;padding:16px;font-size:12px;color:var(--t3);"><div class="spin"></div><div style="margin-top:7px;color:var(--t2);">역세권 요건 판단 중...</div></div>');
   clearYkOverlays();
 
-  let stations = [];
-  try { stations = await searchNearbyStations(ST.lat, ST.lng, 1000); } catch(e) {}
+  let raw=[];
+  try{raw=await searchNearbyStations(ST.lat,ST.lng,1000);}catch(e){}
 
-  // [v18-06] 역명 중복 제거 — 동일 역이 노선별로 복수 POI 등록된 경우 처리
-  // ex) "강남역(2호선)" + "강남역(신분당선)" → 기본 역명("강남역")으로 그룹화, 가장 가까운 것 대표
-  const stationMap = new Map();
-  for (const s of stations) {
-    // 괄호 앞 기본 역명 추출 ("강남역(2호선)" → "강남역")
-    const baseName = s.name.replace(/\s*\(.*\)$/, '').trim();
-    if (!stationMap.has(baseName) || stationMap.get(baseName).dist > s.dist) {
-      // 환승역: 원래 이름에 괄호 포함 OR 같은 baseName으로 복수 POI 발견
-      const existingIsTransfer = stationMap.has(baseName);
-      stationMap.set(baseName, {
-        ...s,
-        name: baseName,
-        isTransfer: existingIsTransfer || s.name.includes('('),
-      });
-    }
+  // 중복 제거 (동일 역 다른 노선)
+  const stMap=new Map();
+  for(const s of raw){
+    const base=s.name.replace(/\s*\(.*\)$/,'').trim();
+    if(!stMap.has(base)||stMap.get(base).dist>s.dist)
+      stMap.set(base,{...s,name:base,isTransfer:stMap.has(base)||s.name.includes('(')});
   }
-  const deduped = Array.from(stationMap.values()).sort((a,b)=>a.dist-b.dist);
+  const stations=Array.from(stMap.values()).sort((a,b)=>a.dist-b.dist);
 
-  const d250 = deduped.filter(s=>s.dist<=250);
-  const d300 = deduped.filter(s=>s.dist<=300);
-  const d500 = deduped.filter(s=>s.dist<=500);
-  const hasTransfer300 = d300.filter(s=>s.isTransfer).length>0;
+  const d250=stations.filter(s=>s.dist<=250);
+  const d300=stations.filter(s=>s.dist<=300);
+  const d500=stations.filter(s=>s.dist<=500);
+  const hasT300=d300.filter(s=>s.isTransfer).length>0;
 
-  // [v18-05 유지] 역세권 판정 — 30년 이상만 허용
-  const ageOk   = ST.age>=30;
-  const areaOk  = ST.area>=1000;
-  const areaSmall = ST.area>0&&ST.area<1000;
+  const ageOk=ST.age>=30;
+  const areaOk=ST.area>=1000;
+  const isA=(d250.length>0||hasT300)&&ageOk&&areaOk;
+  const isB=d500.length>0&&ageOk&&!isA;
 
-  const isTypeA = (d250.length>0||hasTransfer300) && ageOk && areaOk;
-  const isTypeB = d500.length>0 && ageOk && !isTypeA;
+  let grade='no',gl='요건 미충족',gm='';
+  if(isA){grade='go';gl='A유형 — 사업 추진 가능';gm='250m(단일)/300m(환승) + 노후 30년↑ + 1,000㎡↑';}
+  else if(isB){grade='maybe';gl='B유형 — 조건부 검토';gm='500m 이내 + 노후 30년↑ (세부요건 확인 필요)';}
+  else if(!d500.length){grade='no';gl='역세권 범위 외';gm='500m 이내 지하철역 없음';}
+  else if(!ageOk){grade='no';gl='노후도 미충족';gm=ST.age>0?`준공 ${ST.age}년 — 30년 이상 필요 (${30-ST.age}년 남음)`:'건물정보 없음 → 위 수동입력란에서 사용승인일 입력 후 재시도';}
+  else{grade='no';gl='면적 미충족';gm=`${ST.area>0?ST.area.toLocaleString()+'㎡':'미입력'} — A유형 1,000㎡ 이상 필요`;}
 
-  let grade='no', gradeLabel='요건 미충족', gradeMsg='';
-  if      (isTypeA)    { grade='go';    gradeLabel='A유형 — 사업 추진 가능';   gradeMsg='250m(단일)/300m(환승) 이내 + 노후 30년↑ + 1,000㎡↑'; }
-  else if (isTypeB)    { grade='maybe'; gradeLabel='B유형 — 조건부 검토';      gradeMsg='500m 이내 + 노후 30년↑ — 면적·세부요건 추가 확인 필요'; }
-  else if (!d500.length){ grade='no'; gradeLabel='역세권 범위 외'; gradeMsg='500m 이내 지하철역 없음'; }
-  else if (!ageOk)     { grade='no'; gradeLabel='노후도 미충족';
-    gradeMsg=ST.age>0?`준공 ${ST.age}년 — 30년 이상 필요 (${30-ST.age}년 남음)`:'건축물 정보 없음'; }
-  else                 { grade='no'; gradeLabel='면적 요건 미충족'; gradeMsg=`${ST.area.toLocaleString()}㎡ — A유형 1,000㎡ 이상 필요`; }
-
-  // 지도 원 + 라벨
-  const circles = [{radius:250,color:'#10b981',label:'250m A유형'},{radius:300,color:'#f59e0b',label:'300m 환승'},{radius:500,color:'#3b82f6',label:'500m B유형'}];
-  circles.forEach(cfg => {
-    const c = new kakao.maps.Circle({
-      map, center:new kakao.maps.LatLng(ST.lat,ST.lng), radius:cfg.radius,
-      strokeWeight:2, strokeColor:cfg.color, strokeOpacity:.8,
-      fillColor:cfg.color, fillOpacity:.05,
-    });
-    ykCircles.push(c);
-    const lEl = document.createElement('div');
-    lEl.style.cssText=`background:${cfg.color};color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:9px;white-space:nowrap;opacity:.9;pointer-events:none;`;
-    lEl.textContent = cfg.label;
-    const lo = new kakao.maps.CustomOverlay({
-      position:new kakao.maps.LatLng(ST.lat+(cfg.radius/111000),ST.lng),
-      content:lEl, yAnchor:1.4, zIndex:3
-    });
-    lo.setMap(map); ykMarkers.push(lo);
+  // 원 + 라벨
+  [{r:250,c:'#10b981',l:'250m A유형'},{r:300,c:'#f59e0b',l:'300m 환승'},{r:500,c:'#3b82f6',l:'500m B유형'}].forEach(({r,c,l})=>{
+    const circle=new kakao.maps.Circle({map,center:new kakao.maps.LatLng(ST.lat,ST.lng),radius:r,strokeWeight:2,strokeColor:c,strokeOpacity:.8,fillColor:c,fillOpacity:.05});
+    ykCircles.push(circle);
+    const el=document.createElement('div');
+    el.style.cssText=`background:${c};color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:9px;white-space:nowrap;opacity:.9;pointer-events:none;`;
+    el.textContent=l;
+    const lo=new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(ST.lat+(r/111000),ST.lng),content:el,yAnchor:1.4,zIndex:3});
+    lo.setMap(map);ykMarkers.push(lo);
   });
-
-  deduped.slice(0,10).forEach(s => {
-    const el = document.createElement('div');
+  stations.slice(0,10).forEach(s=>{
+    const el=document.createElement('div');
     el.style.cssText=`background:${s.dist<=250?'#10b981':s.dist<=300?'#f59e0b':'#3b82f6'};color:#fff;font-size:9px;font-weight:700;padding:3px 6px;border-radius:10px;white-space:nowrap;border:1.5px solid rgba(255,255,255,.3);`;
     el.textContent=`🚇 ${s.name}${s.isTransfer?'(환승)':''} ${s.dist}m`;
-    const mk = new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(s.lat,s.lng),content:el,yAnchor:1.5,zIndex:4});
-    mk.setMap(map); ykMarkers.push(mk);
+    const mk=new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(s.lat,s.lng),content:el,yAnchor:1.5,zIndex:4});
+    mk.setMap(map);ykMarkers.push(mk);
   });
+  map.setCenter(new kakao.maps.LatLng(ST.lat,ST.lng));map.setLevel(5);
 
-  map.setCenter(new kakao.maps.LatLng(ST.lat,ST.lng)); map.setLevel(5);
-
-  const nearest = deduped[0];
-  const nearestTxt = nearest?`${nearest.name} (${nearest.dist}m, ${nearest.isTransfer?'환승역':'단일역'})`:'역 없음';
-
-  const typeInfo = isTypeA
-    ? `<div style="margin:8px 0;padding:8px 10px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:7px;font-size:10px;color:#34d399;line-height:1.7;"><b>A유형 사업 개요</b><br>· 용적률 완화: 기준 + 200%p (최대 700%)<br>· 기부채납: 증가 연면적의 13~15%<br>· 의무 용도: 공공임대주택 50% 이상<br>· 사업 기간: 인허가 후 3년 이내 착공</div>`
-    : isTypeB
-    ? `<div style="margin:8px 0;padding:8px 10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:7px;font-size:10px;color:#fbbf24;line-height:1.7;"><b>B유형 사업 개요</b><br>· 용적률 완화: 기준 + 150%p (최대 650%)<br>· 기부채납: 증가 연면적의 18~20%<br>· 의무 용도: 공공임대주택 40% 이상<br>· 사업 기간: 인허가 후 4년 이내 착공</div>` : '';
+  const nearest=stations[0];
+  const nTxt=nearest?`${nearest.name} (${nearest.dist}m, ${nearest.isTransfer?'환승역':'단일역'})`:'역 없음';
+  const typeBox=isA
+    ?`<div style="margin:8px 0;padding:8px 10px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:7px;font-size:10px;color:#34d399;line-height:1.7"><b>A유형 개요</b><br>· 용적률: 기준 +200%p (최대 700%)<br>· 기부채납: 증가 연면적의 13~15%<br>· 의무용도: 공공임대 50% 이상<br>· 착공: 인허가 후 3년 이내</div>`
+    :isB?`<div style="margin:8px 0;padding:8px 10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:7px;font-size:10px;color:#fbbf24;line-height:1.7"><b>B유형 개요</b><br>· 용적률: 기준 +150%p (최대 650%)<br>· 기부채납: 증가 연면적의 18~20%<br>· 의무용도: 공공임대 40% 이상<br>· 착공: 인허가 후 4년 이내</div>`:'';
 
   setEl('yk-body',`
-    <div class="yk-badge ${grade}">${gradeLabel}</div>
-    <div style="font-size:11px;color:var(--t2);margin-bottom:10px;line-height:1.6;">${gradeMsg}</div>
+    <div class="yk-badge ${grade}">${gl}</div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px;line-height:1.6">${gm}</div>
     <div class="yk-legend">
       <div class="yk-leg-item"><div class="yk-leg-dot" style="border-color:#10b981;background:rgba(16,185,129,.2)"></div><span>250m 단일</span></div>
       <div class="yk-leg-item"><div class="yk-leg-dot" style="border-color:#f59e0b;background:rgba(245,158,11,.2)"></div><span>300m 환승</span></div>
       <div class="yk-leg-item"><div class="yk-leg-dot" style="border-color:#3b82f6;background:rgba(59,130,246,.2)"></div><span>500m B유형</span></div>
     </div>
-    <div class="yk-row"><span class="yk-key">가장 가까운 역</span><span class="yk-val">${nearestTxt}</span></div>
-    <div class="yk-row"><span class="yk-key">250m 이내</span><span class="yk-val ${d250.length>0?'green':'red'}">${d250.length?d250.map(s=>s.name+(s.isTransfer?'(환승)':'')+'('+s.dist+'m)').join(', '):'없음'}</span></div>
-    <div class="yk-row"><span class="yk-key">300m 환승역</span><span class="yk-val ${d300.filter(s=>s.isTransfer).length>0?'gold':'red'}">${d300.filter(s=>s.isTransfer).length?d300.filter(s=>s.isTransfer).map(s=>s.name+'('+s.dist+'m)').join(', '):'없음'}</span></div>
-    <div class="yk-row"><span class="yk-key">500m 이내</span><span class="yk-val ${d500.length>0?'blue':'red'}">${d500.length}개역 (중복제거 후)</span></div>
-    <div class="yk-row"><span class="yk-key">노후도</span><span class="yk-val ${ageOk?'green':'red'}">${ST.age>0?ST.age+'년':'미확인'} ${ageOk?'✅ 30년↑':'❌ 미충족'}</span></div>
-    <div class="yk-row"><span class="yk-key">대지면적</span><span class="yk-val ${areaOk?'green':areaSmall?'gold':'red'}">${ST.area>0?ST.area.toLocaleString()+'㎡':'미확인'} ${areaOk?'✅':areaSmall?'⚠️ 1,000㎡ 미만':''}</span></div>
-    <div class="yk-row"><span class="yk-key">지목</span><span class="yk-val">${ST.jimok||'미확인'}</span></div>
-    ${typeInfo}
-    <div style="margin-top:9px;padding:8px 10px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.25);border-radius:7px;font-size:9.5px;color:var(--t2);line-height:1.7;">
+    <div class="yk-row"><span class="yk-key">가장 가까운 역</span><span class="yk-val">${nTxt}</span></div>
+    <div class="yk-row"><span class="yk-key">250m 이내</span><span class="yk-val ${d250.length?'green':'red'}">${d250.length?d250.map(s=>s.name+(s.isTransfer?'(환승)':'')+'('+s.dist+'m)').join(', '):'없음'}</span></div>
+    <div class="yk-row"><span class="yk-key">300m 환승역</span><span class="yk-val ${d300.filter(s=>s.isTransfer).length?'gold':'red'}">${d300.filter(s=>s.isTransfer).length?d300.filter(s=>s.isTransfer).map(s=>s.name+'('+s.dist+'m)').join(', '):'없음'}</span></div>
+    <div class="yk-row"><span class="yk-key">500m 이내</span><span class="yk-val ${d500.length?'blue':'red'}">${d500.length}개역 (중복제거)</span></div>
+    <div class="yk-row"><span class="yk-key">노후도</span><span class="yk-val ${ageOk?'green':'red'}">${ST.age>0?ST.age+'년':ST.loaded?'수동입력 필요':'—'} ${ageOk?'✅ 30년↑':'❌'}</span></div>
+    <div class="yk-row"><span class="yk-key">대지면적</span><span class="yk-val ${areaOk?'green':ST.area>0?'gold':'red'}">${ST.area>0?ST.area.toLocaleString()+'㎡':'수동입력 필요'} ${areaOk?'✅':''}</span></div>
+    ${typeBox}
+    <div style="margin-top:9px;padding:8px 10px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.25);border-radius:7px;font-size:9.5px;color:var(--t2);line-height:1.7">
       ※ 서울특별시 역세권 장기전세주택 건립 운영기준 (2026 기준)<br>
-      ※ A유형: 단일역 250m / 환승역 300m, 노후 30년↑, 1,000㎡↑<br>
-      ※ B유형: 500m 이내, 노후 30년↑ (면적 요건 완화 협의 가능)<br>
-      ※ 역 거리 = 카카오 POI 기준 (공식 출입구 기준과 다를 수 있음)
-    </div>
-  `);
-  toast('🚇 역세권 분석 완료 — 중복 역 제거 적용');
+      ※ 노후도·면적 미입력 시 → 수동입력란에서 입력 후 재클릭<br>
+      ※ 역 거리 = 카카오 POI 기준 (공식 출입구 기준과 상이할 수 있음)
+    </div>`);
+  toast('🚇 역세권 분석 완료');
 }
 
-function searchNearbyStations(lat, lng, radius) {
-  return new Promise(resolve => {
-    if (!window.kakao?.maps?.services) { resolve([]); return; }
-    const ps = new kakao.maps.services.Places();
-    ps.categorySearch('SW8', (result, status) => {
-      if (status!==kakao.maps.services.Status.OK) { resolve([]); return; }
-      const stList = result.map(r => ({
-        name: r.place_name,
-        dist: parseInt(r.distance)||9999,
-        lat: parseFloat(r.y), lng: parseFloat(r.x),
-        isTransfer: r.place_name.includes('(') && r.place_name.includes(')'),
-      })).sort((a,b)=>a.dist-b.dist);
-      resolve(stList);
-    }, {location:new kakao.maps.LatLng(lat,lng),radius,sort:kakao.maps.services.SortBy.DISTANCE});
+function searchNearbyStations(lat,lng,radius){
+  return new Promise(resolve=>{
+    if(!window.kakao?.maps?.services){resolve([]);return;}
+    const ps=new kakao.maps.services.Places();
+    ps.categorySearch('SW8',(result,status)=>{
+      if(status!==kakao.maps.services.Status.OK){resolve([]);return;}
+      resolve(result.map(r=>({name:r.place_name,dist:parseInt(r.distance)||9999,lat:parseFloat(r.y),lng:parseFloat(r.x),isTransfer:r.place_name.includes('(')&&r.place_name.includes(')')})).sort((a,b)=>a.dist-b.dist));
+    },{location:new kakao.maps.LatLng(lat,lng),radius,sort:kakao.maps.services.SortBy.DISTANCE});
   });
 }
 
-// ══════════════════════════════════════════
-// 내 위치
-// ══════════════════════════════════════════
-function goMyLoc() {
-  if (!navigator.geolocation) { toast('위치 미지원'); return; }
+// ── 내 위치 ──
+function goMyLoc(){
+  if(!navigator.geolocation){toast('위치 미지원');return;}
   toast('📍 위치 찾는 중...');
-  navigator.geolocation.getCurrentPosition(pos => {
-    const {latitude:lat, longitude:lng, accuracy:acc} = pos.coords;
-    if (myMarker) myMarker.setMap(null);
-    if (myCircle) myCircle.setMap(null);
-    const el = document.createElement('div'); el.className='my-dot';
-    myMarker = new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(lat,lng),content:el,yAnchor:.5,zIndex:10});
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const{latitude:lat,longitude:lng,accuracy:acc}=pos.coords;
+    if(myMarker)myMarker.setMap(null);if(myCircle)myCircle.setMap(null);
+    const el=document.createElement('div');el.className='my-dot';
+    myMarker=new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(lat,lng),content:el,yAnchor:.5,zIndex:10});
     myMarker.setMap(map);
-    myCircle = new kakao.maps.Circle({map,center:new kakao.maps.LatLng(lat,lng),radius:acc,strokeWeight:1,strokeColor:'#ef4444',strokeOpacity:.5,fillColor:'#ef4444',fillOpacity:.07});
-    map.setCenter(new kakao.maps.LatLng(lat,lng)); map.setLevel(3);
+    myCircle=new kakao.maps.Circle({map,center:new kakao.maps.LatLng(lat,lng),radius:acc,strokeWeight:1,strokeColor:'#ef4444',strokeOpacity:.5,fillColor:'#ef4444',fillOpacity:.07});
+    map.setCenter(new kakao.maps.LatLng(lat,lng));map.setLevel(3);
     toast(`📍 현재 위치 (±${Math.round(acc)}m)`);
-  }, () => toast('위치 권한을 허용해주세요'));
+  },()=>toast('위치 권한을 허용해주세요'));
 }
 
-// ══════════════════════════════════════════
-// 초기화
-// ══════════════════════════════════════════
-function resetAll() {
-  Object.assign(ST, {
-    lat:0,lng:0,addr:'',road:'',pnu:'',sigungu:'',bjdong:'',bun:'',ji:'',
-    area:0,price:0,jimok:'',age:0,bldNm:'',use:'',floor:'',totArea:'',
-    zoneName:'',zoneList:[],loaded:false,pnuValid:false,
-  });
-  if (selOverlay) { selOverlay.setMap(null); selOverlay=null; }
+// ── 초기화 ──
+function resetAll(){
+  Object.assign(ST,{lat:0,lng:0,addr:'',road:'',pnu:'',sigungu:'',bjdong:'',bun:'',ji:'',area:0,price:0,age:0,use:'',totArea:0,zoneName:'제2종일반주거',loaded:false});
+  if(selOverlay){selOverlay.setMap(null);selOverlay=null;}
   clearYkOverlays();
   setEl('addr-main','<span class="addr-ph">지도를 클릭하거나 주소를 검색하세요</span>');
-  hide('addr-road'); hide('sec-land'); hide('sec-bld'); hide('sec-dev');
-  hide('yk-result'); hide('sec-trade'); hide('sec-zone');
+  hide('addr-road');hide('pnu-txt');hide('sec-land');hide('sec-bld');hide('sec-dev');
+  hide('yk-result');hide('sec-trade');hide('sec-manual');
   document.getElementById('aging-box').style.display='none';
   document.getElementById('search-inp').value='';
-  // need-loc 재적용
-  ['qa-naver','qa-trade','qa-road','qa-yk'].forEach(id => {
-    document.getElementById(id)?.classList.add('need-loc');
-  });
-  ['land-cache','bld-cache','zone-cache'].forEach(id => {
-    const el=document.getElementById(id); if(el) el.style.display='none';
-  });
-  resetSt();
+  ['m-area','m-price','m-use','m-date','m-gfa'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('m-zone').value='제2종일반주거';
+  ['qa-naver','qa-trade','qa-road','qa-yk'].forEach(id=>document.getElementById(id)?.classList.add('need-loc'));
+  setSt('st-addr','idle','📍 주소');setSt('st-pnu','idle','🔑 PNU');
+  setSt('st-trade','ok','📊 실거래가 ✅');setSt('st-manual','warn','✏️ 수동입력 대기');
   toast('🔄 초기화 완료');
 }
 
-// ══════════════════════════════════════════
-// 저장 (TXT)
-// [v18-02] THIS_YEAR 반영
-// ══════════════════════════════════════════
-function exportTxt() {
-  if (!ST.loaded) { toast('❌ 부지를 먼저 클릭하세요'); return; }
-  const now = new Date();
-  const dt = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  const fn = `${String(now.getFullYear()).substring(2)}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-warroom-v18.txt`;
-  const txt = [
-    `[Hi-On War Room v18] 분석일시: ${dt}`,``,
-    `▶ 지번주소: ${ST.addr||'—'}`,
-    `▶ 도로명주소: ${ST.road||'—'}`,``,
+// ── 저장 ──
+function exportTxt(){
+  if(!ST.addr&&!ST.area){toast('❌ 부지를 먼저 클릭하세요');return;}
+  const now=new Date();
+  const dt=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const fn=`${String(now.getFullYear()).slice(2)}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-warroom-v19.txt`;
+  const lines=[
+    `[Hi-On War Room v19] 분석일시: ${dt}`,``,
+    `▶ 지번주소: ${ST.addr||'—'}`,`▶ 도로명주소: ${ST.road||'—'}`,
+    `▶ PNU: ${ST.pnu||'—'}`,``,
     `▶ 대지면적: ${ST.area?ST.area.toLocaleString()+'㎡':'—'}`,
     `▶ 공시지가: ${ST.price?ST.price.toLocaleString()+'원/㎡':'—'}`,
-    `▶ 지목: ${ST.jimok||'—'}`,
     `▶ 토지추정가: ${ST.area&&ST.price?Math.round(ST.area*ST.price/1e8*10)/10+'억원':'—'}`,``,
-    `▶ 건물명: ${ST.bldNm||'—'}`,
+    `▶ 용도지역: ${ST.zoneName||'—'}`,
     `▶ 주용도: ${ST.use||'—'}`,
-    `▶ 층수: ${ST.floor||'—'}`,
     `▶ 연면적: ${ST.totArea?ST.totArea.toLocaleString()+'㎡':'—'}`,
-    `▶ 노후도: ${ST.age>0?ST.age+'년 ('+THIS_YEAR+'년 기준)':'—'}`,``,
-    `▶ 용도지역: ${ST.zoneName||'미조회'}`,
-    `▶ PNU: ${ST.pnu||'—'}`,
-  ].join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([txt],{type:'text/plain;charset=utf-8'}));
-  a.download = fn; a.click(); toast('💾 저장 완료');
+    `▶ 노후도: ${ST.age>0?ST.age+'년 ('+THIS_YEAR+'년 기준)':'—'}`,
+  ];
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}));
+  a.download=fn;a.click();toast('💾 저장 완료');
 }
 
-// ══════════════════════════════════════════
-// UI 헬퍼
-// ══════════════════════════════════════════
-function showLoading(v) { document.getElementById('loading').classList.toggle('show',v); }
-function setLoadStep(m) { document.getElementById('load-step').textContent=m; }
-function setEl(id,html) { const el=document.getElementById(id); if(el) el.innerHTML=html; }
-function show(id) { const el=document.getElementById(id); if(el) el.style.display=''; }
-function hide(id) { const el=document.getElementById(id); if(el) el.style.display='none'; }
-let _tt;
-function toast(msg) {
-  const el=document.getElementById('toast');
-  el.textContent=msg; el.classList.add('show');
-  clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),3200);
+// ── UI 헬퍼 ──
+function showLoading(v,msg){
+  document.getElementById('loading').classList.toggle('show',v);
+  if(msg)document.getElementById('load-step').textContent=msg;
 }
+function setEl(id,html){const e=document.getElementById(id);if(e)e.innerHTML=html;}
+function show(id){const e=document.getElementById(id);if(e)e.style.display='';}
+function hide(id){const e=document.getElementById(id);if(e)e.style.display='none';}
+let _tt;
+function toast(msg){const e=document.getElementById('toast');e.textContent=msg;e.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>e.classList.remove('show'),3200);}
 </script>
 </body>
 </html>
